@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pomodoro Timer</title>
+<style>
+  :root {
+    --accent: #ff5a4d;      /* work default */
+    --accent-dim: #7a2a26;
+    --bg: #12141c;
+    --panel: #1b1e2a;
+    --text: #e8eaf0;
+    --muted: #8a8fa3;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.4s ease;
+  }
+  .card {
+    width: 340px;
+    background: var(--panel);
+    border-radius: 20px;
+    padding: 34px 28px 30px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    text-align: center;
+    border: 1px solid rgba(255,255,255,0.04);
+  }
+  .mode-label {
+    font-size: 14px;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-weight: 600;
+    transition: color 0.4s ease;
+  }
+  .ring-wrap { position: relative; width: 220px; height: 220px; margin: 22px auto 8px; }
+  svg { transform: rotate(-90deg); }
+  .ring-bg { stroke: rgba(255,255,255,0.07); }
+  .ring-fg { stroke: var(--accent); transition: stroke 0.4s ease, stroke-dashoffset 0.5s linear; stroke-linecap: round; }
+  .time {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 52px; font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  .dots { display: flex; gap: 12px; justify-content: center; margin: 14px 0 6px; }
+  .dot {
+    width: 13px; height: 13px; border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    transition: background 0.3s ease, box-shadow 0.3s ease;
+  }
+  .dot.filled { background: var(--accent); box-shadow: 0 0 10px var(--accent-dim); }
+  .completed { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
+  .completed b { color: var(--text); }
+  .controls { display: flex; gap: 12px; justify-content: center; }
+  button {
+    font: inherit; font-weight: 600; font-size: 15px;
+    padding: 12px 22px; border-radius: 12px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.1);
+    background: #262a38; color: var(--text);
+    transition: transform 0.1s ease, background 0.2s ease, border-color 0.2s ease;
+  }
+  button:hover { background: #2f3444; }
+  button:active { transform: scale(0.96); }
+  button.primary { background: var(--accent); border-color: transparent; color: #10121a; }
+  button.primary:hover { filter: brightness(1.08); }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="mode-label" id="modeLabel">Focus</div>
+    <div class="ring-wrap">
+      <svg width="220" height="220" viewBox="0 0 220 220">
+        <circle class="ring-bg" cx="110" cy="110" r="100" fill="none" stroke-width="12"/>
+        <circle class="ring-fg" id="ring" cx="110" cy="110" r="100" fill="none" stroke-width="12"
+                stroke-dasharray="628.318" stroke-dashoffset="0"/>
+      </svg>
+      <div class="time" id="time">25:00</div>
+    </div>
+    <div class="dots" id="dots">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+    <div class="completed">Completed: <b id="completed">0</b></div>
+    <div class="controls">
+      <button class="primary" id="startPause">Start</button>
+      <button id="reset">Reset</button>
+    </div>
+  </div>
+
+  <script src="pomodoro.js"></script>
+  <script>
+    var timer = createTimer(); // 25/5/15 defaults
+    var CIRC = 2 * Math.PI * 100; // 628.318
+
+    var el = {
+      body: document.body,
+      mode: document.getElementById('modeLabel'),
+      time: document.getElementById('time'),
+      ring: document.getElementById('ring'),
+      dots: document.getElementById('dots').children,
+      completed: document.getElementById('completed'),
+      startPause: document.getElementById('startPause'),
+      reset: document.getElementById('reset')
+    };
+
+    var ACCENTS = {
+      work:      { accent: '#ff5a4d', dim: '#7a2a26', bg: '#12141c' },
+      break:     { accent: '#37d67a', dim: '#1e5a38', bg: '#0f1613' },
+      longBreak: { accent: '#4d9dff', dim: '#243f66', bg: '#0f1420' }
+    };
+
+    var LABELS = { work: 'Focus', break: 'Short Break', longBreak: 'Long Break' };
+
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function fmt(sec) { return pad(Math.floor(sec / 60)) + ':' + pad(sec % 60); }
+
+    var interval = null;
+
+    function render() {
+      var s = timer.getState();
+      var total = timer.durationForMode(s.mode);
+
+      el.time.textContent = fmt(s.remaining);
+      el.mode.textContent = LABELS[s.mode];
+      el.completed.textContent = s.completed;
+
+      var c = ACCENTS[s.mode];
+      document.documentElement.style.setProperty('--accent', c.accent);
+      document.documentElement.style.setProperty('--accent-dim', c.dim);
+      el.body.style.background = c.bg;
+
+      // progress ring: fraction elapsed
+      var frac = total > 0 ? (1 - s.remaining / total) : 0;
+      el.ring.style.strokeDashoffset = String(CIRC * (1 - frac));
+
+      // cycle dots: fill by position; during long break show all 4 filled
+      var filled = (s.mode === 'longBreak') ? 4 : s.cyclePosition;
+      for (var i = 0; i < el.dots.length; i++) {
+        if (i < filled) el.dots[i].classList.add('filled');
+        else el.dots[i].classList.remove('filled');
+      }
+
+      el.startPause.textContent = s.running ? 'Pause' : 'Start';
+    }
+
+    function stopClock() { if (interval) { clearInterval(interval); interval = null; } }
+    function startClock() {
+      stopClock();
+      interval = setInterval(function () { timer.tick(); render(); }, 1000);
+    }
+
+    el.startPause.addEventListener('click', function () {
+      if (timer.getState().running) { timer.pause(); stopClock(); }
+      else { timer.start(); startClock(); }
+      render();
+    });
+
+    el.reset.addEventListener('click', function () {
+      timer.reset(); stopClock(); render();
+    });
+
+    render();
+  </script>
+</body>
+</html>
