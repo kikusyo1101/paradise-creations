@@ -1,0 +1,346 @@
+{
+  "meta": {
+    "wish": "a coin flip heads-or-tails guessing game",
+    "scale": "standard",
+    "created": "2026-08-30T15:15:38.833Z",
+    "constitution": [
+      "Spec is the source of truth — code serves the spec, not the reverse.",
+      "Every phase is gated — no phase advances on unverified assumptions.",
+      "Independent work runs in parallel; dependent work runs in order.",
+      "Verification precedes judgment; judgment precedes shipping.",
+      "Evidence-based memory — only what actually happened is remembered.",
+      "No secrets in code; security is reviewed, never assumed."
+    ],
+    "gates": [
+      "discover",
+      "design",
+      "verify",
+      "reflect",
+      "verdict"
+    ]
+  },
+  "created": "2026-08-30T15:15:38.873Z",
+  "domains": [
+    {
+      "seq": 0,
+      "cardinal": "discovery",
+      "domain": "Discovery (調査)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "discover",
+          "agent": "market-researcher",
+          "goal": "Research prior art, popular solutions, and expected/standard features for: a coin flip heads-or-tails guessing game. Surface user needs, not just the literal ask.",
+          "deps": [],
+          "gate": true,
+          "artifact": "findings.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/creations/coin/findings.md"
+        }
+      ],
+      "reviewClass": "pontiff",
+      "pdca": "plan: frame questions → do: research → check: are must-haves grounded? → act: refine or widen search"
+    },
+    {
+      "seq": 1,
+      "cardinal": "requirements",
+      "domain": "Requirements (要件)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "specify",
+          "agent": "requirements-analyst",
+          "goal": "Write requirements (what & why) grounded in the findings — include the table-stakes features users expect",
+          "deps": [
+            "discover"
+          ],
+          "gate": false,
+          "artifact": "requirements.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/creations/coin/requirements.md"
+        }
+      ],
+      "reviewClass": "cardinal:discovery",
+      "pdca": "plan: derive from findings → do: write spec → check: every must-have has an AC? → act: fill gaps"
+    },
+    {
+      "seq": 2,
+      "cardinal": "architecture",
+      "domain": "Architecture (設計)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "design",
+          "agent": "architect",
+          "goal": "Basic design: architecture, data model, interfaces",
+          "deps": [
+            "specify"
+          ],
+          "gate": true,
+          "artifact": "design.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/creations/coin/design.md"
+        },
+        {
+          "id": "detail",
+          "agent": "architect",
+          "goal": "Detailed design: decompose into ordered testable tasks",
+          "deps": [
+            "design"
+          ],
+          "gate": false,
+          "artifact": "tasks.md",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/creations/coin/design.md"
+        }
+      ],
+      "reviewClass": "cardinal:requirements",
+      "pdca": "plan: shape the system → do: design + decompose → check: does design satisfy the spec? → act: revise"
+    },
+    {
+      "seq": 3,
+      "cardinal": "construction",
+      "domain": "Construction (建造)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "build",
+          "agent": "architect",
+          "goal": "Implement the tasks",
+          "deps": [
+            "detail"
+          ],
+          "gate": false,
+          "artifact": "implementation",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/creations/coin/coin.js"
+        },
+        {
+          "id": "tests",
+          "agent": "tdd-guide",
+          "goal": "Write & run the test suite against requirements",
+          "deps": [
+            "detail"
+          ],
+          "gate": false,
+          "artifact": "tests",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/creations/coin/coin.test.js"
+        }
+      ],
+      "reviewClass": "cardinal:quality",
+      "pdca": "plan: take the tasks → do: implement + test → check: do tests pass? → act: fix until green"
+    },
+    {
+      "seq": 4,
+      "cardinal": "quality",
+      "domain": "Quality (品質)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "review",
+          "agent": "code-reviewer",
+          "goal": "Quality review of the implementation",
+          "deps": [
+            "build",
+            "tests"
+          ],
+          "gate": false,
+          "artifact": "review",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "verified"
+        },
+        {
+          "id": "security",
+          "agent": "security-reviewer",
+          "goal": "Security scan of the change",
+          "deps": [
+            "build"
+          ],
+          "gate": false,
+          "artifact": "security-report",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "verified"
+        },
+        {
+          "id": "verify",
+          "agent": "verification-loop",
+          "goal": "Run all verification gates + coverage",
+          "deps": [
+            "review",
+            "security"
+          ],
+          "gate": true,
+          "artifact": "verification-report",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "verified"
+        }
+      ],
+      "reviewClass": "executor",
+      "pdca": "plan: define gates → do: review+scan+verify → check: all gates green? → act: send back or pass"
+    },
+    {
+      "seq": 5,
+      "cardinal": "tribunal",
+      "domain": "Tribunal (断罪機関)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "reflect",
+          "agent": "self-critic",
+          "goal": "Adversarially self-critique against findings & spec: run critic checklist + lessons. Any gap => demand REWORK before judgment",
+          "deps": [
+            "verify"
+          ],
+          "gate": true,
+          "artifact": "critique.md",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "critique:clean"
+        },
+        {
+          "id": "verdict",
+          "agent": "creation-judge",
+          "goal": "Judge against spec, findings, critique & constitution: SHIP / REWORK / BLOCK",
+          "deps": [
+            "reflect"
+          ],
+          "gate": true,
+          "artifact": "verdict",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/creations/coin/verdict-report.json"
+        }
+      ],
+      "reviewClass": "god",
+      "pdca": "reflect (adversarial self-critique) precedes verdict (SHIP/REWORK/BLOCK)"
+    }
+  ],
+  "history": [
+    {
+      "ts": "2026-08-30T15:15:38.874Z",
+      "event": "convene",
+      "detail": "6 domains, 11 phases"
+    },
+    {
+      "ts": "2026-08-30T15:15:38.915Z",
+      "event": "dispatch",
+      "detail": "discover"
+    },
+    {
+      "ts": "2026-08-30T15:17:00.704Z",
+      "event": "done",
+      "detail": "discover → C:/Users/kikus/Documents/workspace/paradise/creations/coin/findings.md"
+    },
+    {
+      "ts": "2026-08-30T15:17:00.804Z",
+      "event": "ratify",
+      "detail": "Discovery (調査) ratified by pontiff"
+    },
+    {
+      "ts": "2026-08-30T15:17:00.846Z",
+      "event": "dispatch",
+      "detail": "specify"
+    },
+    {
+      "ts": "2026-08-30T15:18:30.649Z",
+      "event": "done",
+      "detail": "specify → C:/Users/kikus/Documents/workspace/paradise/creations/coin/requirements.md"
+    },
+    {
+      "ts": "2026-08-30T15:18:30.690Z",
+      "event": "ratify",
+      "detail": "Requirements (要件) ratified by cardinal:discovery"
+    },
+    {
+      "ts": "2026-08-30T15:18:30.732Z",
+      "event": "dispatch",
+      "detail": "design"
+    },
+    {
+      "ts": "2026-08-30T15:20:47.659Z",
+      "event": "done",
+      "detail": "design → C:/Users/kikus/Documents/workspace/paradise/creations/coin/design.md"
+    },
+    {
+      "ts": "2026-08-30T15:20:47.698Z",
+      "event": "done",
+      "detail": "detail → C:/Users/kikus/Documents/workspace/paradise/creations/coin/design.md"
+    },
+    {
+      "ts": "2026-08-30T15:20:47.739Z",
+      "event": "ratify",
+      "detail": "Architecture (設計) ratified by cardinal:requirements"
+    },
+    {
+      "ts": "2026-08-30T15:20:47.779Z",
+      "event": "done",
+      "detail": "build → C:/Users/kikus/Documents/workspace/paradise/creations/coin/coin.js"
+    },
+    {
+      "ts": "2026-08-30T15:20:47.819Z",
+      "event": "done",
+      "detail": "tests → C:/Users/kikus/Documents/workspace/paradise/creations/coin/coin.test.js"
+    },
+    {
+      "ts": "2026-08-30T15:20:47.861Z",
+      "event": "ratify",
+      "detail": "Construction (建造) ratified by cardinal:quality"
+    },
+    {
+      "ts": "2026-08-30T15:20:47.904Z",
+      "event": "dispatch",
+      "detail": "review, security"
+    },
+    {
+      "ts": "2026-08-30T15:21:19.471Z",
+      "event": "done",
+      "detail": "review → verified"
+    },
+    {
+      "ts": "2026-08-30T15:21:19.513Z",
+      "event": "done",
+      "detail": "security → verified"
+    },
+    {
+      "ts": "2026-08-30T15:21:19.553Z",
+      "event": "done",
+      "detail": "verify → verified"
+    },
+    {
+      "ts": "2026-08-30T15:21:19.593Z",
+      "event": "ratify",
+      "detail": "Quality (品質) ratified by executor"
+    },
+    {
+      "ts": "2026-08-30T15:21:19.674Z",
+      "event": "done",
+      "detail": "reflect → critique:clean"
+    },
+    {
+      "ts": "2026-08-30T15:21:19.753Z",
+      "event": "done",
+      "detail": "verdict → C:/Users/kikus/Documents/workspace/paradise/creations/coin/verdict-report.json"
+    },
+    {
+      "ts": "2026-08-30T15:21:19.794Z",
+      "event": "ratify",
+      "detail": "Tribunal (断罪機関) ratified by god"
+    }
+  ]
+}

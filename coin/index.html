@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>コイントス — 表か裏か</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #171b22;
+    --panel-2: #1f2530;
+    --text: #e6e9ef;
+    --muted: #8b94a3;
+    --accent: #ffcf5c;
+    --accent-2: #d4a017;
+    --green: #3ddc84;
+    --red: #ff5c5c;
+    --border: #2a313d;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0;
+    background: radial-gradient(1200px 600px at 50% -10%, #1a2030, var(--bg));
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+  }
+  .wrap {
+    max-width: 480px;
+    margin: 0 auto;
+    padding: 32px 20px 48px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+  }
+  h1 {
+    font-size: 1.6rem;
+    margin: 8px 0 0;
+    letter-spacing: 0.5px;
+  }
+  .sub { color: var(--muted); font-size: 0.9rem; margin-top: -14px; }
+
+  /* Coin */
+  .coin-stage { perspective: 800px; height: 180px; display: flex; align-items: center; justify-content: center; }
+  .coin {
+    width: 160px; height: 160px;
+    border-radius: 50%;
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.15s ease;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.55), inset 0 0 0 4px rgba(255,255,255,0.06);
+  }
+  .coin .face {
+    position: absolute; inset: 0;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 3.4rem; font-weight: 800;
+    backface-visibility: hidden;
+    background: radial-gradient(circle at 35% 30%, #ffe08a, var(--accent) 55%, var(--accent-2));
+    color: #4a3800;
+    border: 6px solid #b8860b;
+    text-shadow: 0 1px 0 rgba(255,255,255,0.4);
+  }
+  .coin .heads { transform: rotateY(0deg); }
+  .coin .tails { transform: rotateY(180deg); }
+  .coin.show-tails { transform: rotateY(180deg); }
+  .coin.flipping { animation: spin 1s cubic-bezier(.3,.1,.2,1); }
+  @keyframes spin {
+    0%   { transform: rotateY(0) rotateX(0) translateY(0); }
+    50%  { transform: rotateY(900deg) rotateX(180deg) translateY(-40px); }
+    100% { transform: rotateY(1800deg) rotateX(360deg) translateY(0); }
+  }
+  .coin.flipping.land-tails { animation: spin-tails 1s cubic-bezier(.3,.1,.2,1); }
+  @keyframes spin-tails {
+    0%   { transform: rotateY(0) translateY(0); }
+    50%  { transform: rotateY(900deg) rotateX(180deg) translateY(-40px); }
+    100% { transform: rotateY(1980deg) translateY(0); }
+  }
+
+  /* Choice buttons */
+  .choices { display: flex; gap: 14px; width: 100%; }
+  .choices button {
+    flex: 1;
+    padding: 16px 0;
+    font-size: 1.1rem; font-weight: 700;
+    border-radius: 14px;
+    border: 2px solid var(--border);
+    background: var(--panel-2);
+    color: var(--text);
+    cursor: pointer;
+    transition: transform .08s, border-color .15s, background .15s;
+  }
+  .choices button:hover { border-color: var(--accent); }
+  .choices button:active { transform: translateY(1px); }
+  .choices button.chosen {
+    border-color: var(--accent);
+    background: linear-gradient(180deg, #2a2410, #201d12);
+    box-shadow: 0 0 0 2px rgba(255,207,92,0.25);
+  }
+  .choices button:disabled { opacity: 0.55; cursor: default; }
+
+  /* Verdict */
+  .verdict {
+    min-height: 32px;
+    font-size: 1.3rem; font-weight: 800;
+    letter-spacing: 0.5px;
+    text-align: center;
+  }
+  .verdict.correct { color: var(--green); }
+  .verdict.incorrect { color: var(--red); }
+  .result-line { color: var(--muted); font-size: 0.95rem; text-align:center; min-height: 20px; }
+
+  /* Scoreboard */
+  .board {
+    display: flex; width: 100%; gap: 12px;
+  }
+  .board .cell {
+    flex: 1;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 14px 8px;
+    text-align: center;
+  }
+  .board .cell .num { font-size: 1.6rem; font-weight: 800; }
+  .board .cell .lbl { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+  .board .cell.win .num { color: var(--green); }
+  .board .cell.lose .num { color: var(--red); }
+  .board .cell.streak .num { color: var(--accent); }
+
+  .reset {
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid var(--border);
+    padding: 10px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 0.9rem;
+  }
+  .reset:hover { color: var(--text); border-color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>コイントス 🪙</h1>
+    <div class="sub">表か裏かを選んで投げよう</div>
+
+    <div class="coin-stage">
+      <div class="coin" id="coin">
+        <div class="face heads">H</div>
+        <div class="face tails">T</div>
+      </div>
+    </div>
+
+    <div class="verdict" id="verdict"></div>
+    <div class="result-line" id="resultLine">予想を選んでください</div>
+
+    <div class="choices">
+      <button id="btnHeads" data-side="heads">表 (Heads)</button>
+      <button id="btnTails" data-side="tails">裏 (Tails)</button>
+    </div>
+
+    <div class="board">
+      <div class="cell win"><div class="num" id="scCorrect">0</div><div class="lbl">正解</div></div>
+      <div class="cell lose"><div class="num" id="scIncorrect">0</div><div class="lbl">不正解</div></div>
+      <div class="cell streak"><div class="num" id="scStreak">0</div><div class="lbl">連勝</div></div>
+    </div>
+
+    <button class="reset" id="btnReset">リセット</button>
+  </div>
+
+  <script src="coin.js"></script>
+  <script>
+    (function () {
+      var game = createGame();
+      var coin = document.getElementById('coin');
+      var verdict = document.getElementById('verdict');
+      var resultLine = document.getElementById('resultLine');
+      var btnHeads = document.getElementById('btnHeads');
+      var btnTails = document.getElementById('btnTails');
+      var btnReset = document.getElementById('btnReset');
+      var scCorrect = document.getElementById('scCorrect');
+      var scIncorrect = document.getElementById('scIncorrect');
+      var scStreak = document.getElementById('scStreak');
+      var busy = false;
+
+      function label(side) { return side === 'heads' ? '表 (Heads)' : '裏 (Tails)'; }
+
+      function renderScore() {
+        var s = game.score;
+        scCorrect.textContent = s.correct;
+        scIncorrect.textContent = s.incorrect;
+        scStreak.textContent = s.streak;
+      }
+
+      function markChosen(side) {
+        btnHeads.classList.toggle('chosen', side === 'heads');
+        btnTails.classList.toggle('chosen', side === 'tails');
+      }
+
+      function play(side) {
+        if (busy) return;
+        busy = true;
+        markChosen(side);
+        verdict.textContent = '';
+        verdict.className = 'verdict';
+        resultLine.textContent = '投げています…';
+
+        var res = game.guess(side); // {chosen, flipped, correct}
+
+        // animate
+        coin.classList.remove('flipping', 'land-tails', 'show-tails');
+        void coin.offsetWidth; // reflow to restart animation
+        coin.classList.add('flipping');
+        if (res.flipped === 'tails') coin.classList.add('land-tails');
+
+        btnHeads.disabled = true;
+        btnTails.disabled = true;
+
+        setTimeout(function () {
+          // settle coin to the flipped face
+          coin.classList.remove('flipping', 'land-tails');
+          coin.classList.toggle('show-tails', res.flipped === 'tails');
+
+          resultLine.textContent = '結果: ' + label(res.flipped) + ' / あなたの予想: ' + label(res.chosen);
+          verdict.textContent = res.correct ? '当たり！ 🎉' : '外れ… 😬';
+          verdict.classList.add(res.correct ? 'correct' : 'incorrect');
+          renderScore();
+
+          btnHeads.disabled = false;
+          btnTails.disabled = false;
+          busy = false;
+        }, 1000);
+      }
+
+      btnHeads.addEventListener('click', function () { play('heads'); });
+      btnTails.addEventListener('click', function () { play('tails'); });
+      btnReset.addEventListener('click', function () {
+        game.reset();
+        renderScore();
+        verdict.textContent = '';
+        verdict.className = 'verdict';
+        resultLine.textContent = '予想を選んでください';
+        markChosen(null);
+        coin.classList.remove('flipping', 'land-tails', 'show-tails');
+      });
+
+      renderScore();
+    })();
+  </script>
+</body>
+</html>
