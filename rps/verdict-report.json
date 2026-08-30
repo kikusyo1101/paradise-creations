@@ -1,0 +1,23 @@
+{
+  "build": "pass",
+  "types": {
+    "status": "pass"
+  },
+  "lint": {
+    "status": "pass"
+  },
+  "tests": {
+    "passed": 18,
+    "failed": 0,
+    "total": 18,
+    "coverage": 100
+  },
+  "security": {
+    "issues": 0,
+    "secrets": 0
+  },
+  "spec": {
+    "satisfied": true,
+    "unmet": []
+  }
+}

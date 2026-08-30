@@ -1,0 +1,127 @@
+{
+  "meta": {
+    "wish": "a rock-paper-scissors game vs computer",
+    "scale": "standard",
+    "created": "2026-08-30T14:39:05.008Z",
+    "constitution": [
+      "Spec is the source of truth — code serves the spec, not the reverse.",
+      "Every phase is gated — no phase advances on unverified assumptions.",
+      "Independent work runs in parallel; dependent work runs in order.",
+      "Verification precedes judgment; judgment precedes shipping.",
+      "Evidence-based memory — only what actually happened is remembered.",
+      "No secrets in code; security is reviewed, never assumed."
+    ],
+    "gates": [
+      "discover",
+      "design",
+      "verify",
+      "reflect",
+      "verdict"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "discover",
+      "agent": "market-researcher",
+      "goal": "Research prior art, popular solutions, and expected/standard features for: a rock-paper-scissors game vs computer. Surface user needs, not just the literal ask.",
+      "gate": true,
+      "artifact": "findings.md"
+    },
+    {
+      "id": "specify",
+      "agent": "requirements-analyst",
+      "goal": "Write requirements (what & why) grounded in the findings — include the table-stakes features users expect",
+      "deps": [
+        "discover"
+      ],
+      "artifact": "requirements.md"
+    },
+    {
+      "id": "design",
+      "agent": "architect",
+      "goal": "Basic design: architecture, data model, interfaces",
+      "deps": [
+        "specify"
+      ],
+      "gate": true,
+      "artifact": "design.md"
+    },
+    {
+      "id": "detail",
+      "agent": "architect",
+      "goal": "Detailed design: decompose into ordered testable tasks",
+      "deps": [
+        "design"
+      ],
+      "artifact": "tasks.md"
+    },
+    {
+      "id": "build",
+      "agent": "architect",
+      "goal": "Implement the tasks",
+      "deps": [
+        "detail"
+      ],
+      "artifact": "implementation"
+    },
+    {
+      "id": "tests",
+      "agent": "tdd-guide",
+      "goal": "Write & run the test suite against requirements",
+      "deps": [
+        "detail"
+      ],
+      "artifact": "tests"
+    },
+    {
+      "id": "review",
+      "agent": "code-reviewer",
+      "goal": "Quality review of the implementation",
+      "deps": [
+        "build",
+        "tests"
+      ],
+      "artifact": "review"
+    },
+    {
+      "id": "security",
+      "agent": "security-reviewer",
+      "goal": "Security scan of the change",
+      "deps": [
+        "build"
+      ],
+      "artifact": "security-report"
+    },
+    {
+      "id": "verify",
+      "agent": "verification-loop",
+      "goal": "Run all verification gates + coverage",
+      "deps": [
+        "review",
+        "security"
+      ],
+      "gate": true,
+      "artifact": "verification-report"
+    },
+    {
+      "id": "reflect",
+      "agent": "self-critic",
+      "goal": "Adversarially self-critique against findings & spec: run critic checklist + lessons. Any gap => demand REWORK before judgment",
+      "deps": [
+        "verify"
+      ],
+      "gate": true,
+      "artifact": "critique.md"
+    },
+    {
+      "id": "verdict",
+      "agent": "creation-judge",
+      "goal": "Judge against spec, findings, critique & constitution: SHIP / REWORK / BLOCK",
+      "deps": [
+        "reflect"
+      ],
+      "gate": true,
+      "artifact": "verdict"
+    }
+  ]
+}

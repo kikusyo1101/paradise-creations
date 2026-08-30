@@ -1,0 +1,288 @@
+{
+  "meta": {
+    "wish": "a rock-paper-scissors game vs computer",
+    "scale": "standard",
+    "created": "2026-08-30T14:39:05.008Z",
+    "constitution": [
+      "Spec is the source of truth — code serves the spec, not the reverse.",
+      "Every phase is gated — no phase advances on unverified assumptions.",
+      "Independent work runs in parallel; dependent work runs in order.",
+      "Verification precedes judgment; judgment precedes shipping.",
+      "Evidence-based memory — only what actually happened is remembered.",
+      "No secrets in code; security is reviewed, never assumed."
+    ],
+    "gates": [
+      "discover",
+      "design",
+      "verify",
+      "reflect",
+      "verdict"
+    ]
+  },
+  "tasks": [
+    {
+      "id": "discover",
+      "agent": "market-researcher",
+      "goal": "Research prior art, popular solutions, and expected/standard features for: a rock-paper-scissors game vs computer. Surface user needs, not just the literal ask.",
+      "deps": [],
+      "gate": true,
+      "artifact": "findings.md"
+    },
+    {
+      "id": "specify",
+      "agent": "requirements-analyst",
+      "goal": "Write requirements (what & why) grounded in the findings — include the table-stakes features users expect",
+      "deps": [
+        "discover"
+      ],
+      "gate": false,
+      "artifact": "requirements.md"
+    },
+    {
+      "id": "design",
+      "agent": "architect",
+      "goal": "Basic design: architecture, data model, interfaces",
+      "deps": [
+        "specify"
+      ],
+      "gate": true,
+      "artifact": "design.md"
+    },
+    {
+      "id": "detail",
+      "agent": "architect",
+      "goal": "Detailed design: decompose into ordered testable tasks",
+      "deps": [
+        "design"
+      ],
+      "gate": false,
+      "artifact": "tasks.md"
+    },
+    {
+      "id": "build",
+      "agent": "architect",
+      "goal": "Implement the tasks",
+      "deps": [
+        "detail"
+      ],
+      "gate": false,
+      "artifact": "implementation"
+    },
+    {
+      "id": "tests",
+      "agent": "tdd-guide",
+      "goal": "Write & run the test suite against requirements",
+      "deps": [
+        "detail"
+      ],
+      "gate": false,
+      "artifact": "tests"
+    },
+    {
+      "id": "review",
+      "agent": "code-reviewer",
+      "goal": "Quality review of the implementation",
+      "deps": [
+        "build",
+        "tests"
+      ],
+      "gate": false,
+      "artifact": "review"
+    },
+    {
+      "id": "security",
+      "agent": "security-reviewer",
+      "goal": "Security scan of the change",
+      "deps": [
+        "build"
+      ],
+      "gate": false,
+      "artifact": "security-report"
+    },
+    {
+      "id": "verify",
+      "agent": "verification-loop",
+      "goal": "Run all verification gates + coverage",
+      "deps": [
+        "review",
+        "security"
+      ],
+      "gate": true,
+      "artifact": "verification-report"
+    },
+    {
+      "id": "reflect",
+      "agent": "self-critic",
+      "goal": "Adversarially self-critique against findings & spec: run critic checklist + lessons. Any gap => demand REWORK before judgment",
+      "deps": [
+        "verify"
+      ],
+      "gate": true,
+      "artifact": "critique.md"
+    },
+    {
+      "id": "verdict",
+      "agent": "creation-judge",
+      "goal": "Judge against spec, findings, critique & constitution: SHIP / REWORK / BLOCK",
+      "deps": [
+        "reflect"
+      ],
+      "gate": true,
+      "artifact": "verdict"
+    }
+  ],
+  "phases": {
+    "discover": {
+      "status": "done",
+      "attempts": 1,
+      "artifact": "C:/Users/kikus/Documents/workspace/paradise/creations/rps/findings.md"
+    },
+    "specify": {
+      "status": "done",
+      "attempts": 1,
+      "artifact": "C:/Users/kikus/Documents/workspace/paradise/creations/rps/requirements.md"
+    },
+    "design": {
+      "status": "done",
+      "attempts": 1,
+      "artifact": "C:/Users/kikus/Documents/workspace/paradise/creations/rps/design.md"
+    },
+    "detail": {
+      "status": "done",
+      "attempts": 0,
+      "artifact": "C:/Users/kikus/Documents/workspace/paradise/creations/rps/design.md"
+    },
+    "build": {
+      "status": "done",
+      "attempts": 0,
+      "artifact": "C:/Users/kikus/Documents/workspace/paradise/creations/rps/rps.js"
+    },
+    "tests": {
+      "status": "done",
+      "attempts": 0,
+      "artifact": "C:/Users/kikus/Documents/workspace/paradise/creations/rps/rps.test.js"
+    },
+    "review": {
+      "status": "done",
+      "attempts": 1,
+      "artifact": "reviewed:clean"
+    },
+    "security": {
+      "status": "done",
+      "attempts": 1,
+      "artifact": "security:0-issues"
+    },
+    "verify": {
+      "status": "done",
+      "attempts": 1,
+      "artifact": "C:/Users/kikus/Documents/workspace/paradise/creations/rps/verdict-report.json"
+    },
+    "reflect": {
+      "status": "done",
+      "attempts": 0,
+      "artifact": "critique:clean"
+    },
+    "verdict": {
+      "status": "running",
+      "attempts": 1
+    }
+  },
+  "history": [
+    {
+      "ts": "2026-08-30T14:39:05.052Z",
+      "event": "init",
+      "detail": "11 phases"
+    },
+    {
+      "ts": "2026-08-30T14:39:05.097Z",
+      "event": "dispatch",
+      "detail": "discover"
+    },
+    {
+      "ts": "2026-08-30T14:40:39.021Z",
+      "event": "done",
+      "detail": "discover -> C:/Users/kikus/Documents/workspace/paradise/creations/rps/findings.md"
+    },
+    {
+      "ts": "2026-08-30T14:40:39.064Z",
+      "event": "dispatch",
+      "detail": "specify"
+    },
+    {
+      "ts": "2026-08-30T14:52:14.897Z",
+      "event": "done",
+      "detail": "specify -> C:/Users/kikus/Documents/workspace/paradise/creations/rps/requirements.md"
+    },
+    {
+      "ts": "2026-08-30T14:52:14.941Z",
+      "event": "dispatch",
+      "detail": "design"
+    },
+    {
+      "ts": "2026-08-30T14:55:34.200Z",
+      "event": "done",
+      "detail": "design -> C:/Users/kikus/Documents/workspace/paradise/creations/rps/design.md"
+    },
+    {
+      "ts": "2026-08-30T14:55:34.239Z",
+      "event": "done",
+      "detail": "detail -> C:/Users/kikus/Documents/workspace/paradise/creations/rps/design.md"
+    },
+    {
+      "ts": "2026-08-30T14:55:34.278Z",
+      "event": "done",
+      "detail": "build -> C:/Users/kikus/Documents/workspace/paradise/creations/rps/rps.js"
+    },
+    {
+      "ts": "2026-08-30T14:55:34.317Z",
+      "event": "done",
+      "detail": "tests -> C:/Users/kikus/Documents/workspace/paradise/creations/rps/rps.test.js"
+    },
+    {
+      "ts": "2026-08-30T14:55:34.357Z",
+      "event": "dispatch",
+      "detail": "review, security"
+    },
+    {
+      "ts": "2026-08-30T14:55:49.527Z",
+      "event": "done",
+      "detail": "review -> reviewed:clean"
+    },
+    {
+      "ts": "2026-08-30T14:55:49.567Z",
+      "event": "done",
+      "detail": "security -> security:0-issues"
+    },
+    {
+      "ts": "2026-08-30T14:55:49.606Z",
+      "event": "dispatch",
+      "detail": "verify"
+    },
+    {
+      "ts": "2026-08-30T14:56:17.637Z",
+      "event": "done",
+      "detail": "verify -> C:/Users/kikus/Documents/workspace/paradise/creations/rps/verdict-report.json"
+    },
+    {
+      "ts": "2026-08-30T14:56:17.679Z",
+      "event": "done",
+      "detail": "reflect -> critique:clean"
+    },
+    {
+      "ts": "2026-08-30T14:56:17.721Z",
+      "event": "dispatch",
+      "detail": "verdict"
+    },
+    {
+      "ts": "2026-08-30T14:57:17.158Z",
+      "event": "verdict",
+      "detail": "SHIP — creation complete"
+    },
+    {
+      "ts": "2026-08-30T14:57:17.203Z",
+      "event": "verdict",
+      "detail": "SHIP — creation complete"
+    }
+  ],
+  "status": "shipped"
+}
