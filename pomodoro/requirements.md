@@ -1,62 +1,105 @@
-# Pomodoro Timer — Requirements
+# Pomodoro Timer — Requirements (v1, complete)
 
-## Intent
-Provide a simple, distraction-free web app that helps a user work in focused
-25-minute intervals separated by short breaks, following the Pomodoro
-Technique. The app should make the current mode, time remaining, and progress
-through a cycle obvious at a glance, and require no setup or accounts.
+*Grounded in `findings.md` (discover phase). Every 🔴 must-have and 🟠 high
+feature from the ranked landscape is in scope. Each acceptance criterion (AC) is
+numbered and testable. The pure state machine lives in `pomodoro.js` (tick-driven,
+no DOM, no real clock — deterministic under node); the browser UI lives in
+`index.html` and drives the module with a 1 Hz `setInterval → tick()`.*
 
-## User Stories
-- **US-1** As a user, I want to start a 25-minute work session so I can focus.
-- **US-2** As a user, I want the timer to automatically switch to a break when a
-  work session ends so I don't have to manage transitions manually.
-- **US-3** As a user, I want short breaks (5 min) between work sessions and a
-  longer break (15 min) after every 4th work session so I can rest properly.
-- **US-4** As a user, I want to pause and resume the timer so I can handle
-  interruptions.
-- **US-5** As a user, I want to reset everything back to the start so I can begin
-  a fresh series of pomodoros.
-- **US-6** As a user, I want to see how many work sessions I've completed and
-  where I am in the current set of four so I can track progress.
+## Scope summary
+A free, no-login, fully-customizable pomodoro timer with presets, auto-start
+toggles, end-of-session notification (sound + visual + tab title), local-only
+today-stats, and settings persisted across reloads. All 🔴 must-haves are
+non-negotiable per the Creation Judge bar in findings.md.
 
-## Functional Requirements
-1. The app SHALL run a countdown timer with three modes: **work**, **break**
-   (short break), and **longBreak**.
-2. A work session SHALL last 25 minutes (1500 seconds).
-3. A short break SHALL last 5 minutes (300 seconds).
-4. A long break SHALL last 15 minutes (900 seconds).
-5. The app SHALL provide **Start**, **Pause**, and **Reset** controls.
-6. When a work session reaches zero, the app SHALL automatically switch to a
-   break and increment the completed-pomodoros count.
-7. After every 4th completed work session, the following break SHALL be a
-   **long break**; otherwise it SHALL be a short break.
-8. When any break reaches zero, the app SHALL automatically switch back to a
-   work session.
-9. The app SHALL display the time remaining in the current mode as MM:SS.
-10. The app SHALL display the current mode label.
-11. The app SHALL display a visible cycle counter showing progress through the
-    current set of four work sessions.
-12. The app SHALL display the total number of completed work sessions.
-13. Pause SHALL stop the countdown without losing the remaining time; Start
-    SHALL resume from the remaining time.
-14. Reset SHALL return the app to a fresh work session with the completed count
-    and cycle position cleared, in a stopped state.
+---
 
-## Acceptance Criteria
-- **AC-1** Given a fresh app, the mode is `work` and the display reads `25:00`.
-- **AC-2** Given a running work session that reaches `00:00`, the mode becomes
-  `break`, the display reads `05:00`, and the completed count increases by 1.
-- **AC-3** Given a running short break that reaches `00:00`, the mode becomes
-  `work` and the display reads `25:00`.
-- **AC-4** Given 4 completed work sessions, the break that begins after the 4th
-  is `longBreak` with the display reading `15:00`.
-- **AC-5** Given a `longBreak` that reaches `00:00`, the mode returns to `work`
-  reading `25:00`, and the cycle position restarts at the first of four.
-- **AC-6** Pressing Pause stops the countdown; the displayed time does not change
-  while paused. Pressing Start resumes counting from that same time.
-- **AC-7** Pressing Reset from any state returns mode to `work`, display to
-  `25:00`, completed count to `0`, cycle dots to empty, and the timer stopped.
-- **AC-8** The cycle counter shows exactly 4 positions and fills one position per
-  completed work session, resetting to empty after the long break completes.
-- **AC-9** The accent color is red/orange during `work`, green during `break`,
-  and blue during `longBreak`.
+## 1. Custom durations — 🔴 must
+- **1.1** The user can set the **work** duration in whole minutes (≥ 1).
+- **1.2** The user can set the **short break** duration in whole minutes (≥ 1).
+- **1.3** The user can set the **long break** duration in whole minutes (≥ 1).
+- **1.4** Durations are held internally in **seconds**; a change to the current
+  mode's duration is reflected in the displayed remaining time immediately
+  (`setConfig` updates `remaining` for the active mode).
+- **1.5** Default durations are Classic **25 / 5 / 15** when no config is given.
+
+## 2. Configurable long-break interval — 🔴 must
+- **2.1** The user can set **N** = number of work sessions before a long break (≥ 1).
+- **2.2** After every **N**-th completed work session the next break is a
+  **long break**; otherwise it is a **short break**.
+- **2.3** Completing a long break resets the cycle counter to 0.
+- **2.4** Default interval N = **4**.
+
+## 3. Start / Pause / Reset / Skip — 🔴 must
+- **3.1** **Start** sets the timer running; each `tick()` decrements remaining by 1s.
+- **3.2** **Pause** halts counting; `tick()` while paused is a no-op.
+- **3.3** **Reset** returns to a fresh **work** session, not running, cycle
+  counter 0. (Reset rewinds the timer; it does NOT clear today-stats.)
+- **3.4** **Skip** ends the current session immediately, applying the **same**
+  transition rules as a natural expiry (work→break/longBreak, break→work,
+  longBreak→work + cycle reset) and the same auto-start behavior.
+- **3.5** Skipping a work session **credits its completion** (completed +1,
+  cyclePosition +1) but does **not** credit focus time for unspent seconds.
+
+## 4. End-of-session notification — 🔴 must
+- **4.1** On any session boundary the UI plays an **audible beep** (WebAudio
+  oscillator; no external audio file).
+- **4.2** On any session boundary the UI shows a **visual flash** cue.
+- **4.3** The **document title** shows a live `MM:SS · mode` countdown while
+  running, and announces the new session on transition (tab-title countdown).
+
+## 5. Presets + custom — 🟠 high
+- **5.1** Three presets are selectable, in seconds:
+  - **Quick** 15 / 3 / 10
+  - **Classic** 25 / 5 / 15
+  - **Deep Work** 50 / 10 / 30
+- **5.2** Presets are exposed on the factory as `createTimer.PRESETS`
+  (`quick`, `classic`, `deepWork`).
+- **5.3** Editing any duration field puts the user in **Custom** mode; presets
+  are one-click shortcuts, not a lock.
+
+## 6. Auto-start toggles — 🟠 high
+- **6.1** **Auto-start breaks**: when on, running continues through a
+  work→break boundary; when off, the transition sets `running = false` and the
+  user must Start the break.
+- **6.2** **Auto-start next pomodoro**: when on, running continues through a
+  break→work boundary; when off, the transition halts.
+- **6.3** Both default **on** (preserves the single-`start()`-drives-all-cycles
+  behavior the base test suite relies on).
+
+## 7. Today-stats (local only) — 🟠 high
+- **7.1** The UI shows **pomodoros completed today** and **focus minutes** today.
+- **7.2** `getStats()` returns `{ completedToday, focusSeconds }`.
+- **7.3** `focusSeconds` accumulates **only** on work-mode ticks (breaks never
+  add focus time).
+- **7.4** Stats are **local-only** (localStorage), keyed by calendar date, and
+  reset automatically on a new day. No network, no account.
+
+## 8. Persistence — 🟠 high
+- **8.1** Settings (durations, interval, both auto-start toggles, selected
+  preset) are saved to **localStorage** on change.
+- **8.2** On reload the saved settings are restored and applied to the timer.
+- **8.3** Today-stats persist across reloads for the same calendar day.
+
+## 9. Module contract (backward-compatible) — invariant
+- **9.1** `createTimer(config)` factory; UMD guard supports `require()` **and**
+  `window.createTimer`.
+- **9.2** Methods: `start()`, `pause()`, `reset()`, `tick()`, `getState()`,
+  plus new `skip()`, `setConfig(partial)`, `getStats()`.
+- **9.3** Live getters: `mode`, `remaining`, `running`, `completed`,
+  `cyclePosition`, `focusSeconds`, `completedToday`, `stats`.
+- **9.4** The existing `pomodoro.test.js` (initial work/25:00, tick decrements,
+  pause no-op, reset, work→break→work, longBreak every interval) **must still
+  pass unchanged**.
+
+---
+
+## Non-goals (explicit, per findings.md 🟡 "Deferred")
+These are **scope decisions, not defects**:
+- **Task list / current-task label** — out of scope for v1.
+- **Ambient focus sound** (rain, white noise, etc.) — out of scope for v1.
+- **Themes / theme switching** — out of scope; a single polished dark theme only.
+- (Also deferred: cloud sync, accounts, cross-device stats history.)
+
+## UI accent colors
+- **Work** → red / orange, **Break** → green, **Long break** → blue.

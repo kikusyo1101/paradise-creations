@@ -1,174 +1,377 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Pomodoro Timer</title>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Pomodoro</title>
 <style>
   :root {
-    --accent: #ff5a4d;      /* work default */
-    --accent-dim: #7a2a26;
-    --bg: #12141c;
-    --panel: #1b1e2a;
-    --text: #e8eaf0;
-    --muted: #8a8fa3;
+    --bg: #14141b;
+    --panel: #1e1e28;
+    --panel-2: #262633;
+    --text: #e9e9f0;
+    --muted: #9a9ab0;
+    --line: #33333f;
+    /* accent is swapped per mode via .app[data-mode] */
+    --accent: #ff6b4a;
+    --accent-soft: rgba(255,107,74,0.15);
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  html, body {
-    height: 100%;
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
     background: var(--bg);
     color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex; align-items: flex-start; justify-content: center;
+    min-height: 100%; padding: 32px 16px;
+    -webkit-font-smoothing: antialiased;
   }
-  body {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.4s ease;
+  .app {
+    width: 100%; max-width: 460px;
+    display: flex; flex-direction: column; gap: 20px;
   }
+  .app[data-mode="work"]      { --accent:#ff6b4a; --accent-soft:rgba(255,107,74,0.15); }
+  .app[data-mode="break"]     { --accent:#33c98a; --accent-soft:rgba(51,201,138,0.15); }
+  .app[data-mode="longBreak"] { --accent:#4a9dff; --accent-soft:rgba(74,157,255,0.15); }
+
+  h1 { font-size: 15px; letter-spacing: 3px; text-transform: uppercase;
+       color: var(--muted); font-weight: 600; margin: 0; text-align: center; }
+
   .card {
-    width: 340px;
     background: var(--panel);
-    border-radius: 20px;
-    padding: 34px 28px 30px;
-    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    padding: 26px 22px;
+  }
+
+  .timer-card {
     text-align: center;
-    border: 1px solid rgba(255,255,255,0.04);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent-soft), 0 18px 40px -22px var(--accent);
+    transition: box-shadow .3s, border-color .3s;
+    position: relative; overflow: hidden;
   }
+  .timer-card.flash { animation: flash .55s ease-out 3; }
+  @keyframes flash {
+    0%,100% { background: var(--panel); }
+    50%     { background: var(--accent-soft); }
+  }
+
   .mode-label {
-    font-size: 14px;
-    letter-spacing: 3px;
-    text-transform: uppercase;
-    color: var(--accent);
-    font-weight: 600;
-    transition: color 0.4s ease;
+    display: inline-block; font-size: 12px; letter-spacing: 2px;
+    text-transform: uppercase; font-weight: 700; color: var(--accent);
+    background: var(--accent-soft); padding: 5px 14px; border-radius: 999px;
+    margin-bottom: 14px;
   }
-  .ring-wrap { position: relative; width: 220px; height: 220px; margin: 22px auto 8px; }
-  svg { transform: rotate(-90deg); }
-  .ring-bg { stroke: rgba(255,255,255,0.07); }
-  .ring-fg { stroke: var(--accent); transition: stroke 0.4s ease, stroke-dashoffset 0.5s linear; stroke-linecap: round; }
   .time {
-    position: absolute; inset: 0;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 52px; font-weight: 700; font-variant-numeric: tabular-nums;
+    font-variant-numeric: tabular-nums;
+    font-size: 84px; font-weight: 700; line-height: 1;
+    color: var(--text); margin: 4px 0 6px;
   }
-  .dots { display: flex; gap: 12px; justify-content: center; margin: 14px 0 6px; }
+  .dots { display: flex; gap: 9px; justify-content: center; margin: 14px 0 4px; height: 12px; }
   .dot {
-    width: 13px; height: 13px; border-radius: 50%;
-    background: rgba(255,255,255,0.12);
-    transition: background 0.3s ease, box-shadow 0.3s ease;
+    width: 11px; height: 11px; border-radius: 50%;
+    background: var(--panel-2); border: 1px solid var(--line);
+    transition: background .2s;
   }
-  .dot.filled { background: var(--accent); box-shadow: 0 0 10px var(--accent-dim); }
-  .completed { color: var(--muted); font-size: 13px; margin-bottom: 20px; }
-  .completed b { color: var(--text); }
-  .controls { display: flex; gap: 12px; justify-content: center; }
+  .dot.done { background: var(--accent); border-color: var(--accent); }
+
+  .controls { display: flex; gap: 10px; margin-top: 20px; }
   button {
-    font: inherit; font-weight: 600; font-size: 15px;
-    padding: 12px 22px; border-radius: 12px; cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.1);
-    background: #262a38; color: var(--text);
-    transition: transform 0.1s ease, background 0.2s ease, border-color 0.2s ease;
+    font: inherit; cursor: pointer; border-radius: 11px;
+    border: 1px solid var(--line); background: var(--panel-2);
+    color: var(--text); padding: 12px 14px; flex: 1;
+    font-weight: 600; transition: background .15s, border-color .15s, transform .05s;
   }
-  button:hover { background: #2f3444; }
-  button:active { transform: scale(0.96); }
-  button.primary { background: var(--accent); border-color: transparent; color: #10121a; }
+  button:hover { background: #30303f; }
+  button:active { transform: translateY(1px); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #14141b; }
   button.primary:hover { filter: brightness(1.08); }
+
+  .stats {
+    text-align: center; color: var(--muted); font-size: 14px;
+    padding: 4px 0;
+  }
+  .stats b { color: var(--text); font-weight: 700; }
+
+  .section-title { font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase;
+    color: var(--muted); margin: 0 0 14px; font-weight: 700; }
+
+  .presets { display: flex; gap: 8px; margin-bottom: 18px; }
+  .presets button { padding: 10px 8px; font-size: 13px; }
+  .presets button.active { background: var(--accent); border-color: var(--accent); color:#14141b; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 14px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field label { font-size: 12px; color: var(--muted); }
+  .field input[type="number"] {
+    background: var(--panel-2); border: 1px solid var(--line); color: var(--text);
+    border-radius: 9px; padding: 9px 10px; font: inherit; width: 100%;
+  }
+  .field input:focus { outline: none; border-color: var(--accent); }
+
+  .toggles { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .toggle { display: flex; align-items: center; justify-content: space-between;
+    font-size: 14px; color: var(--text); }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+
+  .hint { color: var(--muted); font-size: 12px; text-align:center; margin-top: 4px; }
 </style>
 </head>
 <body>
-  <div class="card">
-    <div class="mode-label" id="modeLabel">Focus</div>
-    <div class="ring-wrap">
-      <svg width="220" height="220" viewBox="0 0 220 220">
-        <circle class="ring-bg" cx="110" cy="110" r="100" fill="none" stroke-width="12"/>
-        <circle class="ring-fg" id="ring" cx="110" cy="110" r="100" fill="none" stroke-width="12"
-                stroke-dasharray="628.318" stroke-dashoffset="0"/>
-      </svg>
+  <div class="app" id="app" data-mode="work">
+    <h1>Pomodoro</h1>
+
+    <div class="card timer-card" id="timerCard">
+      <span class="mode-label" id="modeLabel">Focus</span>
       <div class="time" id="time">25:00</div>
+      <div class="dots" id="dots"></div>
+      <div class="controls">
+        <button class="primary" id="startPause">Start</button>
+        <button id="reset">Reset</button>
+        <button id="skip">Skip</button>
+      </div>
     </div>
-    <div class="dots" id="dots">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+
+    <div class="stats" id="stats">
+      Today: <b id="statCount">0</b> pomodoros · <b id="statMinutes">0</b> focus min
     </div>
-    <div class="completed">Completed: <b id="completed">0</b></div>
-    <div class="controls">
-      <button class="primary" id="startPause">Start</button>
-      <button id="reset">Reset</button>
+
+    <div class="card">
+      <p class="section-title">Presets</p>
+      <div class="presets" id="presets">
+        <button data-preset="quick">Quick<br>15/3/10</button>
+        <button data-preset="classic">Classic<br>25/5/15</button>
+        <button data-preset="deepWork">Deep Work<br>50/10/30</button>
+      </div>
+
+      <p class="section-title">Settings</p>
+      <div class="grid">
+        <div class="field"><label for="inWork">Work (min)</label><input id="inWork" type="number" min="1" value="25"></div>
+        <div class="field"><label for="inBreak">Short break (min)</label><input id="inBreak" type="number" min="1" value="5"></div>
+        <div class="field"><label for="inLong">Long break (min)</label><input id="inLong" type="number" min="1" value="15"></div>
+        <div class="field"><label for="inInterval">Long break every (N)</label><input id="inInterval" type="number" min="1" value="4"></div>
+      </div>
+      <div class="toggles">
+        <label class="toggle">Auto-start breaks <input id="inAutoBreak" type="checkbox" checked></label>
+        <label class="toggle">Auto-start next pomodoro <input id="inAutoPomo" type="checkbox" checked></label>
+      </div>
+      <p class="hint">Settings & today-stats are saved locally in your browser.</p>
     </div>
   </div>
 
   <script src="pomodoro.js"></script>
   <script>
-    var timer = createTimer(); // 25/5/15 defaults
-    var CIRC = 2 * Math.PI * 100; // 628.318
+  (function () {
+    'use strict';
+    var STORE_KEY = 'pomodoro.settings.v1';
+    var STATS_KEY = 'pomodoro.stats.v1';
 
-    var el = {
-      body: document.body,
-      mode: document.getElementById('modeLabel'),
-      time: document.getElementById('time'),
-      ring: document.getElementById('ring'),
-      dots: document.getElementById('dots').children,
-      completed: document.getElementById('completed'),
-      startPause: document.getElementById('startPause'),
-      reset: document.getElementById('reset')
+    var $ = function (id) { return document.getElementById(id); };
+    var app = $('app');
+
+    // ---- Settings load/save ------------------------------------------------
+    var defaults = {
+      workMin: 25, breakMin: 5, longMin: 15, interval: 4,
+      autoBreak: true, autoPomo: true, preset: 'classic'
     };
+    function loadSettings() {
+      try { return Object.assign({}, defaults, JSON.parse(localStorage.getItem(STORE_KEY)) || {}); }
+      catch (e) { return Object.assign({}, defaults); }
+    }
+    function saveSettings(s) {
+      try { localStorage.setItem(STORE_KEY, JSON.stringify(s)); } catch (e) {}
+    }
 
-    var ACCENTS = {
-      work:      { accent: '#ff5a4d', dim: '#7a2a26', bg: '#12141c' },
-      break:     { accent: '#37d67a', dim: '#1e5a38', bg: '#0f1613' },
-      longBreak: { accent: '#4d9dff', dim: '#243f66', bg: '#0f1420' }
-    };
+    // ---- Today-stats load/save (date-keyed) --------------------------------
+    function today() { return new Date().toISOString().slice(0, 10); }
+    function loadStats() {
+      try {
+        var s = JSON.parse(localStorage.getItem(STATS_KEY));
+        if (s && s.date === today()) return s;
+      } catch (e) {}
+      return { date: today(), completedToday: 0, focusSeconds: 0 };
+    }
+    function saveStats(st) {
+      try { localStorage.setItem(STATS_KEY, JSON.stringify(st)); } catch (e) {}
+    }
 
-    var LABELS = { work: 'Focus', break: 'Short Break', longBreak: 'Long Break' };
+    var settings = loadSettings();
+    var savedStats = loadStats();
 
-    function pad(n) { return (n < 10 ? '0' : '') + n; }
-    function fmt(sec) { return pad(Math.floor(sec / 60)) + ':' + pad(sec % 60); }
+    // ---- Build timer from settings -----------------------------------------
+    function cfgFromSettings(s) {
+      return {
+        workDuration: s.workMin * 60,
+        breakDuration: s.breakMin * 60,
+        longBreakDuration: s.longMin * 60,
+        longBreakInterval: s.interval,
+        autoStartBreaks: s.autoBreak,
+        autoStartPomodoros: s.autoPomo
+      };
+    }
+    var timer = createTimer(cfgFromSettings(settings));
+
+    // Seed today-stats into a mirror we keep in sync (module stats start at 0
+    // each page load; persisted totals live in savedStats).
+    var baseCompleted = savedStats.completedToday;
+    var baseFocus = savedStats.focusSeconds;
 
     var interval = null;
 
-    function render() {
-      var s = timer.getState();
-      var total = timer.durationForMode(s.mode);
-
-      el.time.textContent = fmt(s.remaining);
-      el.mode.textContent = LABELS[s.mode];
-      el.completed.textContent = s.completed;
-
-      var c = ACCENTS[s.mode];
-      document.documentElement.style.setProperty('--accent', c.accent);
-      document.documentElement.style.setProperty('--accent-dim', c.dim);
-      el.body.style.background = c.bg;
-
-      // progress ring: fraction elapsed
-      var frac = total > 0 ? (1 - s.remaining / total) : 0;
-      el.ring.style.strokeDashoffset = String(CIRC * (1 - frac));
-
-      // cycle dots: fill by position; during long break show all 4 filled
-      var filled = (s.mode === 'longBreak') ? 4 : s.cyclePosition;
-      for (var i = 0; i < el.dots.length; i++) {
-        if (i < filled) el.dots[i].classList.add('filled');
-        else el.dots[i].classList.remove('filled');
+    // ---- Reflect UI inputs from settings -----------------------------------
+    function fillInputs() {
+      $('inWork').value = settings.workMin;
+      $('inBreak').value = settings.breakMin;
+      $('inLong').value = settings.longMin;
+      $('inInterval').value = settings.interval;
+      $('inAutoBreak').checked = settings.autoBreak;
+      $('inAutoPomo').checked = settings.autoPomo;
+      highlightPreset();
+    }
+    function highlightPreset() {
+      var btns = document.querySelectorAll('#presets button');
+      for (var i = 0; i < btns.length; i++) {
+        btns[i].classList.toggle('active', btns[i].getAttribute('data-preset') === settings.preset);
       }
-
-      el.startPause.textContent = s.running ? 'Pause' : 'Start';
     }
 
-    function stopClock() { if (interval) { clearInterval(interval); interval = null; } }
-    function startClock() {
-      stopClock();
-      interval = setInterval(function () { timer.tick(); render(); }, 1000);
+    // ---- Rendering ----------------------------------------------------------
+    var MODE_NAMES = { work: 'Focus', break: 'Short Break', longBreak: 'Long Break' };
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    function fmt(sec) { sec = Math.max(0, sec); return pad(Math.floor(sec / 60)) + ':' + pad(sec % 60); }
+
+    function renderDots() {
+      var n = timer.config.longBreakInterval;
+      var pos = timer.cyclePosition;
+      var html = '';
+      for (var i = 0; i < n; i++) html += '<span class="dot' + (i < pos ? ' done' : '') + '"></span>';
+      $('dots').innerHTML = html;
+    }
+    function render() {
+      var st = timer.getState();
+      app.setAttribute('data-mode', st.mode);
+      $('modeLabel').textContent = MODE_NAMES[st.mode] || st.mode;
+      $('time').textContent = fmt(st.remaining);
+      $('startPause').textContent = st.running ? 'Pause' : 'Start';
+      renderDots();
+      // stats = persisted base + this session's live module stats
+      var ms = timer.getStats();
+      var totalCompleted = baseCompleted + ms.completedToday;
+      var totalFocus = baseFocus + ms.focusSeconds;
+      $('statCount').textContent = totalCompleted;
+      $('statMinutes').textContent = Math.floor(totalFocus / 60);
+      // tab-title countdown
+      document.title = (st.running ? fmt(st.remaining) + ' · ' : '') + (MODE_NAMES[st.mode] || st.mode) + ' — Pomodoro';
     }
 
-    el.startPause.addEventListener('click', function () {
-      if (timer.getState().running) { timer.pause(); stopClock(); }
-      else { timer.start(); startClock(); }
+    // ---- Notification: beep + flash + title --------------------------------
+    var audioCtx = null;
+    function beep() {
+      try {
+        audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)();
+        var seq = [880, 660, 990];
+        var t0 = audioCtx.currentTime;
+        seq.forEach(function (f, i) {
+          var osc = audioCtx.createOscillator();
+          var gain = audioCtx.createGain();
+          osc.type = 'sine'; osc.frequency.value = f;
+          var start = t0 + i * 0.18;
+          gain.gain.setValueAtTime(0.0001, start);
+          gain.gain.exponentialRampToValueAtTime(0.25, start + 0.02);
+          gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.16);
+          osc.connect(gain); gain.connect(audioCtx.destination);
+          osc.start(start); osc.stop(start + 0.17);
+        });
+      } catch (e) {}
+    }
+    function flash() {
+      var c = $('timerCard');
+      c.classList.remove('flash'); void c.offsetWidth; c.classList.add('flash');
+    }
+    function notifyTransition() { beep(); flash(); }
+
+    // ---- Tick loop ----------------------------------------------------------
+    function persistStats() {
+      var ms = timer.getStats();
+      saveStats({ date: today(), completedToday: baseCompleted + ms.completedToday,
+                  focusSeconds: baseFocus + ms.focusSeconds });
+    }
+    function onTick() {
+      var prevMode = timer.mode;
+      timer.tick();
+      if (timer.mode !== prevMode) { notifyTransition(); persistStats(); manageLoop(); }
       render();
+    }
+    function manageLoop() {
+      // Keep an interval only while running; stops itself when a transition
+      // with auto-start off sets running=false.
+      if (timer.running && !interval) {
+        interval = setInterval(onTick, 1000);
+      } else if (!timer.running && interval) {
+        clearInterval(interval); interval = null;
+      }
+    }
+
+    // ---- Controls -----------------------------------------------------------
+    $('startPause').addEventListener('click', function () {
+      if (timer.running) { timer.pause(); }
+      else { timer.start(); if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume(); }
+      manageLoop(); render();
+    });
+    $('reset').addEventListener('click', function () {
+      timer.reset(); manageLoop(); render();
+    });
+    $('skip').addEventListener('click', function () {
+      timer.skip(); notifyTransition(); persistStats(); manageLoop(); render();
     });
 
-    el.reset.addEventListener('click', function () {
-      timer.reset(); stopClock(); render();
+    // ---- Settings inputs ----------------------------------------------------
+    function readInputs() {
+      settings.workMin  = Math.max(1, parseInt($('inWork').value, 10)  || 1);
+      settings.breakMin = Math.max(1, parseInt($('inBreak').value, 10) || 1);
+      settings.longMin  = Math.max(1, parseInt($('inLong').value, 10)  || 1);
+      settings.interval = Math.max(1, parseInt($('inInterval').value, 10) || 1);
+      settings.autoBreak = $('inAutoBreak').checked;
+      settings.autoPomo  = $('inAutoPomo').checked;
+    }
+    function applySettings(markCustom) {
+      readInputs();
+      if (markCustom) settings.preset = 'custom';
+      timer.setConfig(cfgFromSettings(settings));
+      saveSettings(settings);
+      highlightPreset();
+      render();
+    }
+    ['inWork','inBreak','inLong','inInterval'].forEach(function (id) {
+      $(id).addEventListener('change', function () { applySettings(true); });
+    });
+    ['inAutoBreak','inAutoPomo'].forEach(function (id) {
+      $(id).addEventListener('change', function () { applySettings(false); });
     });
 
+    // ---- Presets ------------------------------------------------------------
+    var PRESET_MIN = {
+      quick:    { workMin: 15, breakMin: 3,  longMin: 10, interval: 4 },
+      classic:  { workMin: 25, breakMin: 5,  longMin: 15, interval: 4 },
+      deepWork: { workMin: 50, breakMin: 10, longMin: 30, interval: 4 }
+    };
+    document.querySelectorAll('#presets button').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var p = PRESET_MIN[btn.getAttribute('data-preset')];
+        Object.assign(settings, p);
+        settings.preset = btn.getAttribute('data-preset');
+        fillInputs();
+        timer.setConfig(cfgFromSettings(settings));
+        saveSettings(settings);
+        render();
+      });
+    });
+
+    // ---- Init ---------------------------------------------------------------
+    fillInputs();
     render();
+  })();
   </script>
 </body>
 </html>

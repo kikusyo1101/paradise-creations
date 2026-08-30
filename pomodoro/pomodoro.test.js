@@ -143,5 +143,125 @@ test('default config uses 25/5/15 minute durations', () => {
   assert.strictEqual(t.durationForMode('longBreak'), 15 * 60, 'default longBreak is 15 min');
 });
 
+// ---------------------------------------------------------------------------
+// NEW FEATURES (skip / setConfig / PRESETS / stats / autoStart flags)
+// Real API (confirmed by reading pomodoro.js):
+//   timer.skip()                     -> applies transition() immediately
+//   timer.setConfig(partial)         -> live config change; reflects current
+//                                       mode's duration into remaining
+//   timer.getStats()                 -> { completedToday, focusSeconds }
+//   getState() also carries completedToday & focusSeconds
+//   createTimer.PRESETS = { quick, classic, deepWork } (durations in SECONDS)
+//   config flags: autoStartBreaks, autoStartPomodoros (default TRUE)
+// ---------------------------------------------------------------------------
+console.log('\nPomodoro new features:');
+
+// (a) skip() during work ends the session immediately: work -> break,
+//     completed+1, remaining == breakDuration, WITHOUT ticking to zero.
+test('skip() during work: immediate work->break, completed increments', () => {
+  const t = createTimer(CFG);
+  t.start();
+  const s = t.skip();
+  assert.strictEqual(s.mode, 'break', 'work skips straight to break');
+  assert.strictEqual(s.completed, 1, 'skipped work session counts as completed');
+  assert.strictEqual(s.remaining, CFG.breakDuration, 'remaining == breakDuration');
+});
+
+// (b) skip() during a break returns to work.
+test('skip() during break returns to work', () => {
+  const t = createTimer(CFG);
+  t.start();
+  t.skip(); // work -> break
+  assert.strictEqual(t.getState().mode, 'break', 'precondition: in break');
+  const s = t.skip(); // break -> work
+  assert.strictEqual(s.mode, 'work', 'break skips back to work');
+  assert.strictEqual(s.remaining, CFG.workDuration, 'remaining == workDuration');
+});
+
+// (c) setConfig({workDuration:N}) changes work duration; reset()/next work
+//     session uses the new value.
+test('setConfig({workDuration}) changes work duration for reset/new sessions', () => {
+  const t = createTimer(CFG);
+  t.setConfig({ workDuration: 9 });
+  // Reflected immediately for the current (work) mode.
+  assert.strictEqual(t.getState().remaining, 9, 'current work remaining reflects new duration');
+  t.start();
+  t.tick(); // 9 -> 8
+  t.reset();
+  assert.strictEqual(t.getState().remaining, 9, 'reset uses new workDuration');
+  // A fresh work session reached via skip cycle also uses the new duration.
+  t.start();
+  t.skip(); // work -> break
+  const s = t.skip(); // break -> work
+  assert.strictEqual(s.mode, 'work', 'back to work');
+  assert.strictEqual(s.remaining, 9, 'new work session uses new workDuration');
+});
+
+// (d) PRESETS exist on the factory with the expected durations (SECONDS).
+test('createTimer.PRESETS: Classic 25/5/15, Quick 15/3/10, Deep Work 50/10/30', () => {
+  const P = createTimer.PRESETS;
+  assert.ok(P, 'PRESETS is exposed on the factory');
+  assert.deepStrictEqual(
+    [P.classic.workDuration, P.classic.breakDuration, P.classic.longBreakDuration],
+    [25 * 60, 5 * 60, 15 * 60], 'Classic = 25/5/15 minutes');
+  assert.deepStrictEqual(
+    [P.quick.workDuration, P.quick.breakDuration, P.quick.longBreakDuration],
+    [15 * 60, 3 * 60, 10 * 60], 'Quick = 15/3/10 minutes');
+  assert.deepStrictEqual(
+    [P.deepWork.workDuration, P.deepWork.breakDuration, P.deepWork.longBreakDuration],
+    [50 * 60, 10 * 60, 30 * 60], 'Deep Work = 50/10/30 minutes');
+  // A preset object is usable as a config.
+  const t = createTimer(P.quick);
+  assert.strictEqual(t.getState().remaining, 15 * 60, 'preset drives initial remaining');
+});
+
+// (e) autoStartBreaks flag governs running across the work->break boundary.
+test('autoStartBreaks:true keeps running and enters break at work zero', () => {
+  const t = createTimer({ ...CFG, autoStartBreaks: true });
+  t.start();
+  const s = ticks(t, CFG.workDuration); // drive work to zero
+  assert.strictEqual(s.mode, 'break', 'auto-continued into break');
+  assert.strictEqual(s.running, true, 'still running (auto-started break)');
+});
+
+test('autoStartBreaks:false halts (running=false) at work->break transition', () => {
+  const t = createTimer({ ...CFG, autoStartBreaks: false });
+  t.start();
+  const s = ticks(t, CFG.workDuration); // drive work to zero
+  assert.strictEqual(s.mode, 'break', 'transitioned to break');
+  assert.strictEqual(s.running, false, 'running=false; user must start the break');
+});
+
+// (f) focusSeconds accumulates on WORK ticks only, not on break ticks.
+test('stats.focusSeconds accrues on work ticks but not break ticks', () => {
+  const t = createTimer({ ...CFG, autoStartBreaks: true });
+  t.start();
+  t.tick(); // work tick -> focus +1
+  assert.strictEqual(t.getStats().focusSeconds, 1, 'one work tick = 1 focus second');
+  // Finish the work session (1 more tick reaches zero -> break).
+  t.tick(); // work -> break, focus +1 (this tick was still work)
+  assert.strictEqual(t.getState().mode, 'break', 'now in break');
+  const focusBeforeBreak = t.getStats().focusSeconds;
+  assert.strictEqual(focusBeforeBreak, 2, 'two work ticks = 2 focus seconds');
+  t.tick(); // break tick -> focus must NOT change
+  assert.strictEqual(t.getStats().focusSeconds, focusBeforeBreak, 'break ticks add no focus time');
+});
+
+// (g) completedToday increments once per completed work session.
+test('stats.completedToday increments per completed work session', () => {
+  const t = createTimer(CFG);
+  t.start();
+  assert.strictEqual(t.getStats().completedToday, 0, 'starts at 0');
+  ticks(t, CFG.workDuration); // work#1 -> break
+  assert.strictEqual(t.getStats().completedToday, 1, 'after 1 work session');
+  ticks(t, CFG.breakDuration); // break -> work
+  ticks(t, CFG.workDuration); // work#2 -> break
+  assert.strictEqual(t.getStats().completedToday, 2, 'after 2 work sessions');
+  // skip() of a work session also counts.
+  ticks(t, CFG.breakDuration); // back to work
+  t.skip(); // skip work#3
+  assert.strictEqual(t.getStats().completedToday, 3, 'skipped work session also counts');
+});
+
 console.log(`\nPomodoro self-test: ${pass} passed, ${fail} failed`);
 process.exit(fail === 0 ? 0 : 1);
