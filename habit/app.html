@@ -10,12 +10,18 @@
    地は putty-cream、signal は orange 一色、暗部は warm black。
    GitHub Primer 既定配色・貢献グラフ緑は一切使用しない。 */
 :root {
-  /* ヒートマップ: cream から signal orange へ焼き込むランプ */
+  color-scheme: light;
+
+  /* ヒートマップ: cream から signal orange へ焼き込むランプ
+     【F-1 修正】L0→L1 が 1.02:1 で段として存在していなかった。
+     隣接段の相対輝度差を等間隔に取り直し、全隣接段を 1.34:1 以上に開いた。 */
   --level-0: #E7E1DA;
-  --level-1: #F2DCC6;
-  --level-2: #F0B183;
-  --level-3: #EC7F3C;
+  --level-1: #EFB895;
+  --level-2: #E59668;
+  --level-3: #DC733C;
   --level-4: #CF4500;
+  /* 「記録なし」を色だけでなく形でも示す枠(WCAG 1.4.1 色のみに依存しない) */
+  --empty-edge: #C9C0B4;
 
   --signal: #CF4500;
   --on-signal: #FFFFFF;
@@ -26,10 +32,11 @@
   --fg: #141413;
   --fg-muted: #565656;
   --fg-faint: #767370;
-  --line: #D9D3CC;
+  /* 【F-3 修正】旧値 #D9D3CC は card 上 1.44:1 で WCAG 1.4.11 (3:1) を満たさなかった */
+  --line: #8A8075;
   --accent-ui: #9A3A0A;
   --focus: #CF4500;
-  --offday-line: #C4BAB0;
+  --offday-line: #9E9184;
   --danger: #A3231A;
   --warn-bg: #FAEBDD;
   --warn-fg: #7A3E00;
@@ -43,11 +50,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
     --level-0: #26231F;
     --level-1: #57301A;
     --level-2: #8C4310;
     --level-3: #CF4500;
     --level-4: #F37338;
+    --empty-edge: #4A453F;
 
     --signal: #CF4500;
     --on-signal: #FFFFFF;
@@ -58,10 +68,11 @@
     --fg: #F3F0EE;
     --fg-muted: #B4ADA5;
     --fg-faint: #8C857C;
-    --line: #35322E;
+    /* 【F-3 修正】旧値 #35322E は 1.45:1 で WCAG 1.4.11 (3:1) 未達だった */
+    --line: #78705F;
     --accent-ui: #F37338;
     --focus: #F37338;
-    --offday-line: #4A453F;
+    --offday-line: #8C857C;
     --danger: #EF8A7A;
     --warn-bg: #3A2A18;
     --warn-fg: #F2C08A;
@@ -69,11 +80,14 @@
 }
 
 :root[data-theme="dark"] {
+  color-scheme: dark;
+
   --level-0: #26231F;
   --level-1: #57301A;
   --level-2: #8C4310;
   --level-3: #CF4500;
   --level-4: #F37338;
+  --empty-edge: #4A453F;
 
   --signal: #CF4500;
   --on-signal: #FFFFFF;
@@ -84,10 +98,10 @@
   --fg: #F3F0EE;
   --fg-muted: #B4ADA5;
   --fg-faint: #8C857C;
-  --line: #35322E;
+  --line: #78705F;
   --accent-ui: #F37338;
   --focus: #F37338;
-  --offday-line: #4A453F;
+  --offday-line: #8C857C;
   --danger: #EF8A7A;
   --warn-bg: #3A2A18;
   --warn-fg: #F2C08A;
@@ -201,7 +215,8 @@ h2.sec-title {
   font-size: 12px;
   margin: 0 0 14px;
   letter-spacing: .10em;
-  text-transform: uppercase;
+  /* 【F-8 修正】見出しはすべて日本語で uppercase は一切効かない死んだ宣言だった。
+     eyebrow の役は letter-spacing .10em + weight 700 が既に果たしている。 */
   line-height: 1.3;
   color: var(--fg-muted);
   font-weight: 700;
@@ -264,7 +279,9 @@ h2.sec-title {
   flex: 0 0 auto;
   width: 20px; height: 20px;
   border-radius: 50%;
-  border: 1.5px solid var(--line);
+  /* 【F-3 修正】旧 var(--line) は --bg-sunken 上 1.19:1 で「押せる空の器」に見えなかった。
+     --fg-faint は sunken 上 3.77:1(light) / 4.86:1(dark) で WCAG 1.4.11 を満たす。 */
+  border: 1.5px solid var(--fg-faint);
   display: grid; place-items: center;
   font-size: 12px; color: transparent;
 }
@@ -294,6 +311,9 @@ h2.sec-title {
 }
 #empty-state h2 { font-size: 18px; font-weight: 600; letter-spacing: -.01em; margin: 0 0 8px; }
 #empty-state p { color: var(--fg-muted); margin: 4px 0; }
+/* 【F-5 修正】初回の画面には --signal が一点も存在せず、「次に何をするか」を
+   示す色が無かった。一次 CTA を空状態に置いて進む先を色で示す。 */
+#empty-state .empty-cta { margin: 18px 0 0; }
 
 /* ===== 追加フォーム ===== */
 .form-grid {
@@ -352,8 +372,13 @@ h2.sec-title {
   grid-auto-flow: column;
   grid-auto-columns: var(--cell);
   gap: var(--cell-gap);
+  /* 【F-4 補助】拡張した当たり判定 (.hm-cell::after, z-index:-1) を
+     カード背景より前に留めるためのスタッキングコンテキスト。 */
+  position: relative;
+  z-index: 0;
 }
 .hm-cell {
+  position: relative;
   width: var(--cell);
   height: var(--cell);
   border-radius: 3px;
@@ -362,7 +387,21 @@ h2.sec-title {
   cursor: pointer;
   background: var(--level-0);
 }
+/* 【F-4 修正】見た目のセルは日付格子の走査性のため 13px を保つが、
+   WCAG 2.5.8 (Target Size Minimum 24px) を満たすよう当たり判定だけを拡張する。
+   13 + 6*2 = 25px。::after は描画されないので視覚は一切変わらない。 */
+.hm-cell::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  /* 隣接セルの拡張域が「見えている四角」を覆わないよう、拡張域は必ず
+     セル本体の背景より後ろに置く。押した場所の色 = 押されるセル、が保たれる。 */
+  z-index: -1;
+}
 .hm-cell[data-level="0"] { background: var(--level-0); }
+/* 【F-1 補助 / WCAG 1.4.1】「記録なし」を色の濃さだけに負わせない。
+   空きマスにだけ淡い内枠を与え、色覚特性によらず「空である」ことを形で示す。 */
+.hm-cell[data-level="0"] { box-shadow: inset 0 0 0 1px var(--empty-edge); }
 .hm-cell[data-level="1"] { background: var(--level-1); }
 .hm-cell[data-level="2"] { background: var(--level-2); }
 .hm-cell[data-level="3"] { background: var(--level-3); }
@@ -382,11 +421,12 @@ h2.sec-title {
   width: var(--cell); height: var(--cell);
   border-radius: 3px; display: inline-block;
   background: var(--level-0);
+  box-shadow: inset 0 0 0 1px var(--empty-edge);
 }
-.hm-legend i[data-level="1"] { background: var(--level-1); }
-.hm-legend i[data-level="2"] { background: var(--level-2); }
-.hm-legend i[data-level="3"] { background: var(--level-3); }
-.hm-legend i[data-level="4"] { background: var(--level-4); }
+.hm-legend i[data-level="1"] { background: var(--level-1); box-shadow: none; }
+.hm-legend i[data-level="2"] { background: var(--level-2); box-shadow: none; }
+.hm-legend i[data-level="3"] { background: var(--level-3); box-shadow: none; }
+.hm-legend i[data-level="4"] { background: var(--level-4); box-shadow: none; }
 
 /* ===== ツールチップ ===== */
 #tooltip {
@@ -429,6 +469,19 @@ h2.sec-title {
   :root { --cell: 12px; --cell-gap: 3px; }
   .wrap { padding: 14px 10px 60px; }
 }
+
+/* 【F-6 修正】動きを減らす設定を尊重する (WCAG 2.3.3 / prefers-reduced-motion)。
+   本アプリの動きは .15s の色変化と scale(.995) の圧縮のみだが、
+   前庭障害のある利用者にとって「小さいから安全」は成り立たない。 */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+  }
+  .btn:active, .row-main:active { transform: none; }
+}
 </style>
 </head>
 <body>
@@ -450,6 +503,17 @@ h2.sec-title {
 <main>
   <div id="storage-warning" hidden></div>
   <div id="notice" role="status" aria-live="polite"></div>
+
+  <!-- 【F-5 修正】初回起動でユーザーが最初に見るものが「記入を迫るフォーム」だった。
+       このアプリが何で、次に何をすればよいかを語る空状態を、フォームより前に置く。
+       表示制御は renderEmptyState() の hidden 付け外しのみでロジック不変。 -->
+  <section id="empty-state" class="card" hidden>
+    <h2>まだ習慣がありません</h2>
+    <p>毎日の小さな行動を記録して、続いた軌跡をヒートマップで眺めるためのアプリです。</p>
+    <p>欲張らず、<strong>まずは1〜3個から</strong>はじめてみましょう。</p>
+    <p class="subtle">データはこの端末のブラウザにだけ保存されます。</p>
+    <p class="empty-cta"><button type="button" class="btn primary" id="btn-start">最初の習慣をつくる</button></p>
+  </section>
 
   <section id="today-section" class="card">
     <div class="today-head">
@@ -479,13 +543,6 @@ h2.sec-title {
       <button type="submit" class="btn primary" id="f-submit">追加する</button>
       <button type="button" class="btn ghost" id="f-cancel" hidden>編集をやめる</button>
     </form>
-  </section>
-
-  <section id="empty-state" class="card" hidden>
-    <h2>まだ習慣がありません</h2>
-    <p>毎日の小さな行動を記録して、続いた軌跡をヒートマップで眺めるためのアプリです。</p>
-    <p>欲張らず、<strong>まずは1〜3個から</strong>はじめてみましょう。</p>
-    <p class="subtle">データはこの端末のブラウザにだけ保存されます。</p>
   </section>
 
   <section id="heatmap-section" class="card">
@@ -2046,6 +2103,16 @@ function wire() {
     el.settingsSection.scrollIntoView({ behavior: "smooth", block: "start" });
   });
 
+  /* 【F-5 修正】空状態の一次 CTA。フォームへ運んで名前欄にフォーカスを置くだけで、
+     状態機械も保存も一切触らない。 */
+  var btnStart = document.getElementById("btn-start");
+  if (btnStart) {
+    btnStart.addEventListener("click", function () {
+      el.form.scrollIntoView({ block: "center" });
+      el.fName.focus();
+    });
+  }
+
   document.getElementById("btn-export").addEventListener("click", function () {
     exportJson(state.data);
   });
@@ -2076,6 +2143,14 @@ function wire() {
 loadState();
 wire();
 rerender();
+
+/* 【F-7 修正】ヒートマップが 52週前(左端)を映して開いていた。
+   開く動機は「今どこまで続いているか」なので、初期表示だけ右端(=今日側)へ寄せる。
+   以後のスクロール位置はユーザーのものなので、起動時の一度きりに留める。 */
+(function scrollHeatmapToToday() {
+  var scroller = el.hmGrid && el.hmGrid.closest ? el.hmGrid.closest(".hm-scroll") : null;
+  if (scroller) { scroller.scrollLeft = scroller.scrollWidth; }
+})();
 </script>
 </body>
 </html>

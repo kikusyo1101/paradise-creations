@@ -101,10 +101,11 @@ cream 地(`#f5f1ec`)+ Fin Orange(`#ff5600`)一点賭けという構成は master
 | `--fg` | `#141413` | Ink Black(原典) | 本文・見出し |
 | `--fg-muted` | `#565656` | Graphite(原典) | 副次テキスト |
 | `--fg-faint` | `#767370` | Slate Gray `#696969` を cream 側へ寄せた派生 | 月ラベル・曜日ラベル |
-| `--line` | `#D9D3CC` | Dust Taupe `#D1CDC7` 系 | 境界線 |
+| `--line` | `#8A8075` | Dust Taupe を暗部へ寄せた派生 | 境界線。**WCAG 1.4.11 (3:1) 準拠**: 対 `--bg-elev` 3.75:1 / 対 `--bg` 3.41:1 / 対 `--bg-sunken` 3.09:1 |
 | `--accent-ui` | `#9A3A0A` | Clay Brown(原典) | 通知テキスト・hover 境界 |
 | `--focus` | `#CF4500` | Signal Orange(原典) | フォーカスリング |
-| `--offday-line` | `#C4BAB0` | taupe 派生 | 休息日の枠 |
+| `--offday-line` | `#9E9184` | taupe 派生 | 休息日の枠。対 `--level-0` 2.37:1 |
+| `--empty-edge` | `#C9C0B4` | taupe 派生 | 記録なしセルの内枠(色だけに意味を負わせない / WCAG 1.4.1) |
 | `--danger` | `#A3231A` | 暖色側へ寄せた rust red | 削除操作 |
 | `--warn-bg` | `#FAEBDD` | cream の暖側派生 | 警告帯の地 |
 | `--warn-fg` | `#7A3E00` | clay 系深色 | 警告帯の字 |
@@ -129,10 +130,11 @@ cream 地(`#f5f1ec`)+ Fin Orange(`#ff5600`)一点賭けという構成は master
 | `--fg` | `#F3F0EE` | 反転:cream が字になる |
 | `--fg-muted` | `#B4ADA5` | 副次テキスト |
 | `--fg-faint` | `#8C857C` | ラベル |
-| `--line` | `#35322E` | 境界線 |
+| `--line` | `#78705F` | 境界線。**WCAG 1.4.11 準拠**: 対 `--bg` 3.76:1 / 対 `--bg-elev` 3.43:1 / 対 `--bg-sunken` 3.62:1 |
 | `--accent-ui` | `#F37338` | Light Signal Orange(暗地で読める側) |
 | `--focus` | `#F37338` | フォーカスリング |
-| `--offday-line` | `#4A453F` | 休息日の枠 |
+| `--offday-line` | `#8C857C` | 休息日の枠 |
+| `--empty-edge` | `#4A453F` | 記録なしセルの内枠 |
 | `--danger` | `#EF8A7A` | 暖色系の警告赤 |
 | `--warn-bg` | `#3A2A18` | 警告帯の地 |
 | `--warn-fg` | `#F2C08A` | 警告帯の字 |
@@ -216,13 +218,16 @@ cream の地から Signal Orange を経て Clay Brown の深部へ落ちる、**
 
 ### ライト(地: `#F3F0EE`)
 
-| level | 値 | 意味 |
-|---|---|---|
-| `--level-0` | `#E7E1DA` | 記録なし。地よりわずかに沈む taupe |
-| `--level-1` | `#F2DCC6` | 最下位分位。cream に橙が滲む |
-| `--level-2` | `#F0B183` | soft-pastel 帯 |
-| `--level-3` | `#EC7F3C` | Light Signal Orange `#F37338` の一段深い側 |
-| `--level-4` | `#CF4500` | **Signal Orange 原典値**。最上位分位のみが到達する |
+隣接段は WCAG 相対輝度で等間隔に配し、**全隣接段のコントラスト比 1.34:1 以上**を確保する
+(ux-reviewer 司祭の実測で旧 `--level-1: #F2DCC6` は L0 と **1.02:1** = 段として存在していなかった)。
+
+| level | 値 | 隣接比 | 意味 |
+|---|---|---|---|
+| `--level-0` | `#E7E1DA` | — | 記録なし。地よりわずかに沈む taupe。`--empty-edge` の内枠を併用 |
+| `--level-1` | `#EFB895` | L0→L1 **1.35:1** | 最下位分位。cream に橙が滲む |
+| `--level-2` | `#E59668` | L1→L2 **1.35:1** | soft-pastel 帯 |
+| `--level-3` | `#DC733C` | L2→L3 **1.36:1** | 焼け込みの中腹 |
+| `--level-4` | `#CF4500` | L3→L4 **1.46:1** | **Signal Orange 原典値**。最上位分位のみが到達する |
 
 ### ダーク(地: `#141413`)
 
