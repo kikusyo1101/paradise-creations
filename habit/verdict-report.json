@@ -1,0 +1,53 @@
+{
+  "creation": "habit",
+  "wish": "毎日の習慣を記録し、連続日数とヒートマップで可視化する習慣トラッカー",
+  "artifact": "creations/habit/app.html",
+  "driven_live_by": "pontiff",
+  "gates": {
+    "build": { "pass": true, "evidence": "単一HTMLファイル 68541 bytes / 2059行、ビルド工程なし(依存ゼロ)" },
+    "tests": {
+      "pass": true,
+      "evidence": "node ac-test.js → AC 32/32 PASS, FAIL 0, N/A 0, exit 0 ; node test.js → 479/479 assertions, failed 0, exit 0"
+    },
+    "acceptance_criteria": {
+      "pass": true,
+      "total": 32,
+      "passed": 32,
+      "failed": 0,
+      "evidence": "requirements.md の AC-01..AC-32 を実装者と独立の ac-test.js が全件検証。回帰17件を含む"
+    },
+    "security": {
+      "pass": true,
+      "evidence": "secret系 grep 0件 / 外部参照(https?:// | @import | <script src | integrity=) 0件 / security-report.md 判定 PASS_WITH_NOTES、Medium以上の未修正0件。78ケースの攻撃ペイロードを実起動して検証済み"
+    },
+    "review": {
+      "pass": true,
+      "evidence": "review.md 判定 APPROVE。3周の審査で 解消20 / 妥当な見送り2 / ブロッカー0。残存は cosmetic 2件のみ"
+    },
+    "accessibility": {
+      "pass": true,
+      "evidence": "aria-* 属性 16箇所、roving tabindex 実装、AC-22/23/24 で機械検証済み"
+    },
+    "real_browser": {
+      "pass": true,
+      "evidence": "Brave の file:// で実起動し実操作。習慣追加→チェックで『現在1日・最長1日・達成率1/1(100%)』を確認、ヒートマップの点灯位置が 2026-08-31(月) の曜日行と一致し週開始曜日ずれ無しを目視実証"
+    },
+    "harness_selftest": {
+      "pass": true,
+      "evidence": "node tests/paradise.test.js → 78 passed, 0 failed(跨ぎ差し戻しの回帰2件を今回追加)"
+    }
+  },
+  "rework_history": {
+    "construction_reworks": 2,
+    "max_allowed": 3,
+    "note": "品質枢機卿が2度REWORKを出し、3周目でAPPROVE。loop-guardは発動せず収束"
+  },
+  "residual_risks": [
+    "cosmetic R-1: 到達不能なフォールバック1行とコメント不一致(機能影響なし)",
+    "cosmetic R-2: reconcileUiState の呼び出し位置(機能影響なし)",
+    "Low F-03残: 2MB以内のインポートで24習慣×3800日=91,200件が受理されlocalStorageの約35%を消費しうる(自データのみ、権限昇格なし)",
+    "Low: isDateKey が暦妥当性を検査せず 2026-13-45 が通過する(表示上のみ)"
+  ],
+  "breach": false,
+  "recommendation": "SHIP"
+}

@@ -1,0 +1,436 @@
+{
+  "meta": {
+    "wish": "毎日の習慣を記録し、連続日数とヒートマップで可視化する習慣トラッカー",
+    "scale": "standard",
+    "created": "2026-08-30T22:27:46.246Z",
+    "constitution": [
+      "Spec is the source of truth — code serves the spec, not the reverse.",
+      "Every phase is gated — no phase advances on unverified assumptions.",
+      "Independent work runs in parallel; dependent work runs in order.",
+      "Verification precedes judgment; judgment precedes shipping.",
+      "Evidence-based memory — only what actually happened is remembered.",
+      "No secrets in code; security is reviewed, never assumed."
+    ],
+    "gates": [
+      "discover",
+      "design",
+      "verify",
+      "reflect",
+      "verdict"
+    ]
+  },
+  "created": "2026-08-30T22:27:46.293Z",
+  "domains": [
+    {
+      "seq": 0,
+      "cardinal": "discovery",
+      "domain": "Discovery (調査)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "discover",
+          "agent": "market-researcher",
+          "goal": "Research prior art, popular solutions, and expected/standard features for: 毎日の習慣を記録し、連続日数とヒートマップで可視化する習慣トラッカー. Surface user needs, not just the literal ask.",
+          "deps": [],
+          "gate": true,
+          "artifact": "findings.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "creations/habit/findings.md"
+        }
+      ],
+      "reviewClass": "pontiff",
+      "pdca": "plan: frame questions → do: research → check: are must-haves grounded? → act: refine or widen search"
+    },
+    {
+      "seq": 1,
+      "cardinal": "requirements",
+      "domain": "Requirements (要件)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "specify",
+          "agent": "requirements-analyst",
+          "goal": "Write requirements (what & why) grounded in the findings — include the table-stakes features users expect",
+          "deps": [
+            "discover"
+          ],
+          "gate": false,
+          "artifact": "requirements.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "creations/habit/requirements.md"
+        }
+      ],
+      "reviewClass": "cardinal:discovery",
+      "pdca": "plan: derive from findings → do: write spec → check: every must-have has an AC? → act: fill gaps"
+    },
+    {
+      "seq": 2,
+      "cardinal": "architecture",
+      "domain": "Architecture (設計)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "design",
+          "agent": "architect",
+          "goal": "Basic design: architecture, data model, interfaces",
+          "deps": [
+            "specify"
+          ],
+          "gate": true,
+          "artifact": "design.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "creations/habit/design.md"
+        },
+        {
+          "id": "detail",
+          "agent": "architect",
+          "goal": "Detailed design: decompose into ordered testable tasks",
+          "deps": [
+            "design"
+          ],
+          "gate": false,
+          "artifact": "tasks.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "creations/habit/tasks.md"
+        }
+      ],
+      "reviewClass": "cardinal:requirements",
+      "pdca": "plan: shape the system → do: design + decompose → check: does design satisfy the spec? → act: revise"
+    },
+    {
+      "seq": 3,
+      "cardinal": "construction",
+      "domain": "Construction (建造)",
+      "status": "ratified",
+      "reworks": 2,
+      "phases": [
+        {
+          "id": "build",
+          "agent": "architect",
+          "goal": "Implement the tasks",
+          "deps": [
+            "detail"
+          ],
+          "gate": false,
+          "artifact": "implementation",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "creations/habit/app.html"
+        },
+        {
+          "id": "tests",
+          "agent": "tdd-guide",
+          "goal": "Write & run the test suite against requirements",
+          "deps": [
+            "detail"
+          ],
+          "gate": false,
+          "artifact": "tests",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "creations/habit/ac-test.js"
+        }
+      ],
+      "reviewClass": "cardinal:quality",
+      "pdca": "plan: take the tasks → do: implement + test → check: do tests pass? → act: fix until green"
+    },
+    {
+      "seq": 4,
+      "cardinal": "quality",
+      "domain": "Quality (品質)",
+      "status": "ratified",
+      "reworks": 1,
+      "phases": [
+        {
+          "id": "review",
+          "agent": "code-reviewer",
+          "goal": "Quality review of the implementation",
+          "deps": [
+            "build",
+            "tests"
+          ],
+          "gate": false,
+          "artifact": "review",
+          "status": "done",
+          "attempts": 3,
+          "artifactPath": "creations/habit/review.md"
+        },
+        {
+          "id": "security",
+          "agent": "security-reviewer",
+          "goal": "Security scan of the change",
+          "deps": [
+            "build"
+          ],
+          "gate": false,
+          "artifact": "security-report",
+          "status": "done",
+          "attempts": 3,
+          "artifactPath": "creations/habit/security-report.md"
+        },
+        {
+          "id": "verify",
+          "agent": "verification-loop",
+          "goal": "Run all verification gates + coverage",
+          "deps": [
+            "review",
+            "security"
+          ],
+          "gate": true,
+          "artifact": "verification-report",
+          "status": "done",
+          "attempts": 2,
+          "artifactPath": "creations/habit/verdict-report.json"
+        }
+      ],
+      "reviewClass": "executor",
+      "pdca": "plan: define gates → do: review+scan+verify → check: all gates green? → act: send back or pass"
+    },
+    {
+      "seq": 5,
+      "cardinal": "tribunal",
+      "domain": "Tribunal (断罪機関)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "reflect",
+          "agent": "self-critic",
+          "goal": "Adversarially self-critique against findings & spec: run critic checklist + lessons. Any gap => demand REWORK before judgment",
+          "deps": [
+            "verify"
+          ],
+          "gate": true,
+          "artifact": "critique.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "creations/habit/review.md"
+        },
+        {
+          "id": "verdict",
+          "agent": "creation-judge",
+          "goal": "Judge against spec, findings, critique & constitution: SHIP / REWORK / BLOCK",
+          "deps": [
+            "reflect"
+          ],
+          "gate": true,
+          "artifact": "verdict",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "creations/habit/verdict-report.json"
+        }
+      ],
+      "reviewClass": "god",
+      "pdca": "reflect (adversarial self-critique) precedes verdict (SHIP/REWORK/BLOCK)"
+    }
+  ],
+  "history": [
+    {
+      "ts": "2026-08-30T22:27:46.293Z",
+      "event": "convene",
+      "detail": "6 domains, 11 phases"
+    },
+    {
+      "ts": "2026-08-30T22:27:46.340Z",
+      "event": "dispatch",
+      "detail": "discover"
+    },
+    {
+      "ts": "2026-08-30T22:31:55.613Z",
+      "event": "done",
+      "detail": "discover → creations/habit/findings.md"
+    },
+    {
+      "ts": "2026-08-30T22:31:59.660Z",
+      "event": "ratify",
+      "detail": "Discovery (調査) ratified by pontiff"
+    },
+    {
+      "ts": "2026-08-30T22:31:59.705Z",
+      "event": "dispatch",
+      "detail": "specify"
+    },
+    {
+      "ts": "2026-08-30T22:36:23.248Z",
+      "event": "done",
+      "detail": "specify → creations/habit/requirements.md"
+    },
+    {
+      "ts": "2026-08-30T22:36:27.005Z",
+      "event": "ratify",
+      "detail": "Requirements (要件) ratified by cardinal:discovery"
+    },
+    {
+      "ts": "2026-08-30T22:36:27.049Z",
+      "event": "dispatch",
+      "detail": "design"
+    },
+    {
+      "ts": "2026-08-30T22:42:16.706Z",
+      "event": "done",
+      "detail": "design → creations/habit/design.md"
+    },
+    {
+      "ts": "2026-08-30T22:42:16.752Z",
+      "event": "dispatch",
+      "detail": "detail"
+    },
+    {
+      "ts": "2026-08-30T22:48:25.495Z",
+      "event": "done",
+      "detail": "detail → creations/habit/tasks.md"
+    },
+    {
+      "ts": "2026-08-30T22:48:25.589Z",
+      "event": "ratify",
+      "detail": "Architecture (設計) ratified by cardinal:requirements"
+    },
+    {
+      "ts": "2026-08-30T22:48:25.636Z",
+      "event": "dispatch",
+      "detail": "build, tests"
+    },
+    {
+      "ts": "2026-08-30T22:58:40.689Z",
+      "event": "done",
+      "detail": "build → creations/habit/app.html"
+    },
+    {
+      "ts": "2026-08-30T23:06:54.156Z",
+      "event": "done",
+      "detail": "tests → creations/habit/ac-test.js"
+    },
+    {
+      "ts": "2026-08-30T23:06:54.246Z",
+      "event": "ratify",
+      "detail": "Construction (建造) ratified by cardinal:quality"
+    },
+    {
+      "ts": "2026-08-30T23:06:54.290Z",
+      "event": "dispatch",
+      "detail": "review, security"
+    },
+    {
+      "ts": "2026-08-30T23:17:49.607Z",
+      "event": "done",
+      "detail": "review → creations/habit/review.md"
+    },
+    {
+      "ts": "2026-08-30T23:17:49.653Z",
+      "event": "done",
+      "detail": "security → creations/habit/security-report.md"
+    },
+    {
+      "ts": "2026-08-30T23:17:49.699Z",
+      "event": "dispatch",
+      "detail": "verify"
+    },
+    {
+      "ts": "2026-08-30T23:17:58.106Z",
+      "event": "domain-rework",
+      "detail": "Quality (品質): reset build, review, security, verify (rework 1)"
+    },
+    {
+      "ts": "2026-08-30T23:17:58.153Z",
+      "event": "dispatch",
+      "detail": "review, security"
+    },
+    {
+      "ts": "2026-08-30T23:20:34.478Z",
+      "event": "domain-rework",
+      "detail": "Quality (品質) → Construction (建造): reset build, review, security, verify, reflect, verdict (rework 1); un-ratified construction"
+    },
+    {
+      "ts": "2026-08-30T23:28:38.159Z",
+      "event": "done",
+      "detail": "build → creations/habit/app.html"
+    },
+    {
+      "ts": "2026-08-30T23:28:41.469Z",
+      "event": "ratify",
+      "detail": "Construction (建造) ratified by cardinal:quality"
+    },
+    {
+      "ts": "2026-08-30T23:28:41.514Z",
+      "event": "dispatch",
+      "detail": "review, security"
+    },
+    {
+      "ts": "2026-08-30T23:36:54.833Z",
+      "event": "done",
+      "detail": "review → creations/habit/review.md"
+    },
+    {
+      "ts": "2026-08-30T23:36:54.879Z",
+      "event": "done",
+      "detail": "security → creations/habit/security-report.md"
+    },
+    {
+      "ts": "2026-08-30T23:36:54.924Z",
+      "event": "domain-rework",
+      "detail": "Quality (品質) → Construction (建造): reset build, review, security, verify, reflect, verdict (rework 2); un-ratified construction"
+    },
+    {
+      "ts": "2026-08-30T23:56:23.910Z",
+      "event": "done",
+      "detail": "build → creations/habit/app.html"
+    },
+    {
+      "ts": "2026-08-30T23:56:23.955Z",
+      "event": "ratify",
+      "detail": "Construction (建造) ratified by cardinal:quality"
+    },
+    {
+      "ts": "2026-08-31T00:01:53.284Z",
+      "event": "done",
+      "detail": "review → creations/habit/review.md"
+    },
+    {
+      "ts": "2026-08-31T00:01:53.330Z",
+      "event": "done",
+      "detail": "security → creations/habit/security-report.md"
+    },
+    {
+      "ts": "2026-08-31T00:01:53.374Z",
+      "event": "dispatch",
+      "detail": "verify"
+    },
+    {
+      "ts": "2026-08-31T00:02:34.618Z",
+      "event": "done",
+      "detail": "verify → creations/habit/verdict-report.json"
+    },
+    {
+      "ts": "2026-08-31T00:02:34.707Z",
+      "event": "ratify",
+      "detail": "Quality (品質) ratified by executor"
+    },
+    {
+      "ts": "2026-08-31T00:02:34.752Z",
+      "event": "dispatch",
+      "detail": "reflect"
+    },
+    {
+      "ts": "2026-08-31T00:04:23.342Z",
+      "event": "done",
+      "detail": "reflect → creations/habit/review.md"
+    },
+    {
+      "ts": "2026-08-31T00:04:32.195Z",
+      "event": "done",
+      "detail": "verdict → creations/habit/verdict-report.json"
+    },
+    {
+      "ts": "2026-08-31T00:04:32.239Z",
+      "event": "ratify",
+      "detail": "Tribunal (断罪機関) ratified by god"
+    }
+  ]
+}

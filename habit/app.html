@@ -1,0 +1,2059 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>習慣トラッカー</title>
+<style>
+/* ===== テーマトークン ===== */
+:root {
+  --level-0: #ebedf0;
+  --level-1: #9be9a8;
+  --level-2: #40c463;
+  --level-3: #30a14e;
+  --level-4: #216e39;
+
+  --bg: #f6f8fa;
+  --bg-elev: #ffffff;
+  --bg-sunken: #eef1f4;
+  --fg: #1b2129;
+  --fg-muted: #5c6773;
+  --fg-faint: #808b98;
+  --line: #d7dde4;
+  --accent-ui: #2f81f7;
+  --focus: #2f81f7;
+  --offday-line: #b8c1cc;
+  --danger: #cf222e;
+  --warn-bg: #fff4d6;
+  --warn-fg: #7a5300;
+
+  --cell: 13px;
+  --cell-gap: 3px;
+  --radius: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --level-0: #161b22;
+    --level-1: #0e4429;
+    --level-2: #006d32;
+    --level-3: #26a641;
+    --level-4: #39d353;
+
+    --bg: #0b0f14;
+    --bg-elev: #12181f;
+    --bg-sunken: #0e141a;
+    --fg: #e6edf3;
+    --fg-muted: #9aa7b4;
+    --fg-faint: #6e7d8c;
+    --line: #232c36;
+    --accent-ui: #58a6ff;
+    --focus: #58a6ff;
+    --offday-line: #33404d;
+    --danger: #f85149;
+    --warn-bg: #3a2c07;
+    --warn-fg: #f2cc60;
+  }
+}
+
+:root[data-theme="dark"] {
+  --level-0: #161b22;
+  --level-1: #0e4429;
+  --level-2: #006d32;
+  --level-3: #26a641;
+  --level-4: #39d353;
+
+  --bg: #0b0f14;
+  --bg-elev: #12181f;
+  --bg-sunken: #0e141a;
+  --fg: #e6edf3;
+  --fg-muted: #9aa7b4;
+  --fg-faint: #6e7d8c;
+  --line: #232c36;
+  --accent-ui: #58a6ff;
+  --focus: #58a6ff;
+  --offday-line: #33404d;
+  --danger: #f85149;
+  --warn-bg: #3a2c07;
+  --warn-fg: #f2cc60;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--fg);
+}
+
+body {
+  font-family: system-ui, -apple-system, "Segoe UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-text-size-adjust: 100%;
+}
+
+.wrap {
+  max-width: 940px;
+  margin: 0 auto;
+  padding: 20px 16px 72px;
+}
+
+header.app-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 4px 0 18px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 20px;
+}
+
+header.app-header h1 {
+  font-size: 20px;
+  letter-spacing: .04em;
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.brand-mark {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--level-3);
+  margin-right: 9px;
+  vertical-align: 1px;
+}
+
+.subtle { color: var(--fg-muted); font-size: 13px; }
+
+button, select, input, label { font: inherit; color: inherit; }
+
+.btn {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 13px;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+.btn:hover { border-color: var(--accent-ui); }
+.btn.primary {
+  background: var(--level-3);
+  border-color: var(--level-3);
+  color: #fff;
+  font-weight: 600;
+}
+.btn.ghost { background: transparent; }
+.btn.danger { color: var(--danger); }
+.btn:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+select, input[type="text"], input[type="number"] {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 10px;
+}
+input[type="color"] {
+  width: 42px; height: 34px; padding: 2px;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+}
+
+section.card {
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+h2.sec-title {
+  font-size: 15px;
+  margin: 0 0 14px;
+  letter-spacing: .05em;
+  color: var(--fg-muted);
+  font-weight: 600;
+}
+
+/* ===== 警告・通知 ===== */
+#storage-warning {
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+  border: 1px solid var(--warn-fg);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 14px;
+}
+#notice {
+  min-height: 0;
+  font-size: 14px;
+  color: var(--accent-ui);
+  margin-bottom: 12px;
+}
+#notice:empty { display: none; }
+[hidden] { display: none !important; }
+
+/* ===== 今日の一覧 ===== */
+.today-head {
+  display: flex; align-items: baseline; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 12px;
+}
+#today-list { display: flex; flex-direction: column; gap: 9px; }
+
+.row {
+  display: flex; align-items: stretch; gap: 8px;
+}
+.row-main {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-align: left;
+  background: var(--bg-sunken);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 11px 14px;
+  cursor: pointer;
+  transition: border-color .15s ease, transform .08s ease;
+}
+.row-main:hover { border-color: var(--accent-ui); }
+.row-main:active { transform: scale(.995); }
+.row-main[aria-pressed="true"] {
+  border-color: var(--level-3);
+  background: color-mix(in srgb, var(--level-3) 12%, var(--bg-sunken));
+}
+.dot {
+  flex: 0 0 auto;
+  width: 12px; height: 12px; border-radius: 4px;
+  background: var(--accent);
+}
+.check {
+  flex: 0 0 auto;
+  width: 20px; height: 20px;
+  border-radius: 6px;
+  border: 1.5px solid var(--line);
+  display: grid; place-items: center;
+  font-size: 12px; color: transparent;
+}
+.row-main[aria-pressed="true"] .check {
+  background: var(--level-3);
+  border-color: var(--level-3);
+  color: #fff;
+}
+.row-body { flex: 1 1 auto; min-width: 0; }
+.row-name { font-weight: 600; overflow-wrap: anywhere; }
+.row-stats { font-size: 12.5px; color: var(--fg-muted); }
+/* 【M-7 修正】.row-actions に対応する DOM は生成されないため削除した
+   (習慣管理の行は .admin-row 直下にボタンを置いている)。 */
+
+#habit-limit-hint {
+  margin-top: 12px;
+  font-size: 13px;
+  color: var(--fg-muted);
+  border-left: 3px solid var(--offday-line);
+  padding-left: 10px;
+}
+
+/* ===== 空状態 ===== */
+#empty-state {
+  text-align: center;
+  padding: 34px 18px;
+}
+#empty-state h2 { font-size: 17px; margin: 0 0 8px; }
+#empty-state p { color: var(--fg-muted); margin: 4px 0; }
+
+/* ===== 追加フォーム ===== */
+.form-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+.form-grid label { font-size: 13px; color: var(--fg-muted); }
+.days-box { display: flex; gap: 4px; flex-wrap: wrap; }
+.day-chip {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 4px 9px;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  background: var(--bg-sunken);
+}
+.day-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.day-chip.on { background: var(--level-3); border-color: var(--level-3); color: #fff; }
+.day-chip:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+/* ===== ヒートマップ ===== */
+.hm-controls {
+  display: flex; align-items: center; gap: 10px;
+  flex-wrap: wrap; margin-bottom: 14px;
+}
+.hm-scroll { overflow-x: auto; padding-bottom: 6px; }
+.hm-inner { display: inline-block; min-width: 100%; }
+.hm-body { display: flex; gap: 6px; }
+.hm-months {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: var(--cell);
+  gap: var(--cell-gap);
+  margin-left: calc(22px + 6px);
+  height: 15px;
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+.hm-months span { white-space: nowrap; }
+.hm-weekdays {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  gap: var(--cell-gap);
+  width: 22px;
+  font-size: 10px;
+  color: var(--fg-faint);
+}
+.hm-weekdays span { line-height: var(--cell); text-align: right; }
+
+.hm-grid {
+  display: grid;
+  grid-template-rows: repeat(7, var(--cell));
+  grid-auto-flow: column;
+  grid-auto-columns: var(--cell);
+  gap: var(--cell-gap);
+}
+.hm-cell {
+  width: var(--cell);
+  height: var(--cell);
+  border-radius: 2px;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+  background: var(--level-0);
+}
+.hm-cell[data-level="0"] { background: var(--level-0); }
+.hm-cell[data-level="1"] { background: var(--level-1); }
+.hm-cell[data-level="2"] { background: var(--level-2); }
+.hm-cell[data-level="3"] { background: var(--level-3); }
+.hm-cell[data-level="4"] { background: var(--level-4); }
+.hm-cell[data-offday="true"] { box-shadow: inset 0 0 0 1px var(--offday-line); }
+.hm-cell[data-state="skip"] {
+  background-image: repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 2px, rgba(255,255,255,0) 2px 4px);
+}
+.hm-cell[data-future="true"] { opacity: .35; cursor: default; }
+.hm-cell:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.hm-legend {
+  display: flex; align-items: center; gap: 5px;
+  margin-top: 12px; font-size: 12px; color: var(--fg-muted);
+}
+.hm-legend i {
+  width: var(--cell); height: var(--cell);
+  border-radius: 2px; display: inline-block;
+  background: var(--level-0);
+}
+.hm-legend i[data-level="1"] { background: var(--level-1); }
+.hm-legend i[data-level="2"] { background: var(--level-2); }
+.hm-legend i[data-level="3"] { background: var(--level-3); }
+.hm-legend i[data-level="4"] { background: var(--level-4); }
+
+/* ===== ツールチップ ===== */
+#tooltip {
+  position: fixed;
+  z-index: 40;
+  background: var(--fg);
+  color: var(--bg);
+  border-radius: 7px;
+  padding: 5px 9px;
+  font-size: 12.5px;
+  pointer-events: none;
+  max-width: 260px;
+  box-shadow: 0 6px 20px rgba(0,0,0,.28);
+}
+
+/* ===== 設定 ===== */
+.settings-grid { display: flex; flex-direction: column; gap: 14px; }
+.settings-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.settings-row > label { min-width: 8.5em; font-size: 13.5px; color: var(--fg-muted); }
+.file-label {
+  display: inline-block;
+  background: var(--bg-elev);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 7px 13px;
+  cursor: pointer;
+}
+.file-label:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.file-label input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+
+.habit-admin { display: flex; flex-direction: column; gap: 8px; margin-top: 6px; }
+.habit-admin .name { flex: 1 1 auto; overflow-wrap: anywhere; }
+.admin-row {
+  display: flex; align-items: center; gap: 10px;
+  border: 1px solid var(--line); border-radius: 10px;
+  padding: 8px 12px; background: var(--bg-sunken);
+}
+
+@media (max-width: 520px) {
+  :root { --cell: 12px; --cell-gap: 3px; }
+  .wrap { padding: 14px 10px 60px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="app-header">
+  <h1><span class="brand-mark" aria-hidden="true"></span>習慣トラッカー</h1>
+  <div class="settings-row" style="gap:8px">
+    <label for="theme-select" class="subtle">テーマ</label>
+    <select id="theme-select">
+      <option value="system">システム</option>
+      <option value="light">ライト</option>
+      <option value="dark">ダーク</option>
+    </select>
+    <button type="button" class="btn ghost" id="btn-goto-settings">設定へ</button>
+  </div>
+</header>
+
+<main>
+  <div id="storage-warning" hidden></div>
+  <div id="notice" role="status" aria-live="polite"></div>
+
+  <section id="today-section" class="card">
+    <div class="today-head">
+      <h2 class="sec-title" style="margin:0">今日の記録</h2>
+      <span class="subtle" id="today-label"></span>
+    </div>
+    <div id="today-list"></div>
+    <div id="habit-limit-hint" hidden></div>
+
+    <form id="habit-form" class="form-grid" style="margin-top:18px">
+      <label for="f-name">習慣名</label>
+      <input type="text" id="f-name" maxlength="40" placeholder="朝の散歩" required style="min-width:170px">
+      <label for="f-color">色</label>
+      <input type="color" id="f-color" value="#3fb950">
+      <label for="f-type">頻度</label>
+      <select id="f-type">
+        <option value="daily">毎日</option>
+        <option value="weekdays">曜日指定</option>
+        <option value="weekly">週N回</option>
+      </select>
+      <div class="days-box" id="f-days-box" hidden></div>
+      <span id="f-times-box" hidden>
+        <label for="f-times">週</label>
+        <input type="number" id="f-times" min="1" max="7" value="3" style="width:66px">
+        <span class="subtle">回</span>
+      </span>
+      <button type="submit" class="btn primary" id="f-submit">追加する</button>
+      <button type="button" class="btn ghost" id="f-cancel" hidden>編集をやめる</button>
+    </form>
+  </section>
+
+  <section id="empty-state" class="card" hidden>
+    <h2>まだ習慣がありません</h2>
+    <p>毎日の小さな行動を記録して、続いた軌跡をヒートマップで眺めるためのアプリです。</p>
+    <p>欲張らず、<strong>まずは1〜3個から</strong>はじめてみましょう。</p>
+    <p class="subtle">データはこの端末のブラウザにだけ保存されます。</p>
+  </section>
+
+  <section id="heatmap-section" class="card">
+    <h2 class="sec-title">記録のヒートマップ(直近52週)</h2>
+    <div class="hm-controls">
+      <label for="hm-target">表示対象</label>
+      <select id="hm-target"></select>
+      <span class="subtle" id="hm-mode-hint"></span>
+    </div>
+    <div class="hm-scroll">
+      <div class="hm-inner">
+        <div class="hm-months" id="hm-months" aria-hidden="true"></div>
+        <div class="hm-body">
+          <div class="hm-weekdays" id="hm-weekdays" aria-hidden="true"></div>
+          <div class="hm-grid" id="hm-grid" role="group" aria-label="習慣の記録ヒートマップ"></div>
+        </div>
+      </div>
+    </div>
+    <div class="hm-legend">
+      <span>少ない</span>
+      <i data-level="0"></i><i data-level="1"></i><i data-level="2"></i><i data-level="3"></i><i data-level="4"></i>
+      <span>多い</span>
+    </div>
+  </section>
+
+  <section id="settings-section" class="card">
+    <h2 class="sec-title">設定とデータ</h2>
+    <div class="settings-grid">
+      <div class="settings-row">
+        <label for="s-weekstart">週の開始曜日</label>
+        <select id="s-weekstart">
+          <option value="0">日曜</option>
+          <option value="1">月曜</option>
+        </select>
+      </div>
+      <div class="settings-row">
+        <label>データ</label>
+        <button type="button" class="btn" id="btn-export">JSON をエクスポート</button>
+        <span class="file-label">JSON をインポート
+          <input type="file" id="file-import" accept="application/json">
+        </span>
+      </div>
+      <div>
+        <div class="subtle" style="margin-bottom:6px">習慣の管理</div>
+        <div class="habit-admin" id="habit-admin"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div id="tooltip" role="tooltip" hidden></div>
+</div>
+
+<script>
+"use strict";
+
+/* DOMAIN:START */
+/* ---- 純粋関数のみ。DOM / ストレージ / グローバル state を参照しない ---- */
+
+var WEEKDAY_FULL = ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"];
+var WEEKDAY_SHORT = ["日", "月", "火", "水", "木", "金", "土"];
+var CURRENT_VERSION = 1;
+var MIGRATIONS = {};
+var MAX_HABITS = 24;
+var HINT_HABITS = 6;
+var STREAK_SCAN_DAYS = 3650;
+
+function pad2(n) {
+  return (n < 10 ? "0" : "") + n;
+}
+
+function localDateKey(d) {
+  return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+}
+
+function getTodayKey() {
+  return localDateKey(new Date());
+}
+
+function parseKey(key) {
+  var y = Number(key.slice(0, 4));
+  var m = Number(key.slice(5, 7));
+  var d = Number(key.slice(8, 10));
+  return { y: y, m: m, d: d };
+}
+
+function isDateKey(key) {
+  return typeof key === "string" && /^\d{4}-\d{2}-\d{2}$/.test(key);
+}
+
+function addDays(key, n) {
+  var p = parseKey(key);
+  return localDateKey(new Date(p.y, p.m - 1, p.d + n));
+}
+
+function dayOfWeek(key) {
+  var p = parseKey(key);
+  return new Date(p.y, p.m - 1, p.d).getDay();
+}
+
+/* 暦日から通日番号へ(整数演算のみ。ミリ秒定数を使わない) */
+function dayNumber(key) {
+  var p = parseKey(key);
+  var y = p.y;
+  var m = p.m;
+  var d = p.d;
+  if (m <= 2) { y -= 1; }
+  var era = Math.floor(y / 400);
+  var yoe = y - era * 400;
+  var mp = (m + 9) % 12;
+  var doy = Math.floor((153 * mp + 2) / 5) + d - 1;
+  var doe = yoe * 365 + Math.floor(yoe / 4) - Math.floor(yoe / 100) + doy;
+  return era * 146097 + doe - 719468;
+}
+
+function diffDays(a, b) {
+  return dayNumber(b) - dayNumber(a);
+}
+
+function formatJa(key) {
+  var p = parseKey(key);
+  return p.y + "年" + p.m + "月" + p.d + "日";
+}
+
+function weekdayLabel(key) {
+  return WEEKDAY_FULL[dayOfWeek(key)];
+}
+
+function rotatedWeekdayShort(weekStart) {
+  var out = [];
+  for (var i = 0; i < 7; i++) {
+    out.push(WEEKDAY_SHORT[(i + weekStart) % 7]);
+  }
+  return out;
+}
+
+function rowIndexOf(key, weekStart) {
+  return (dayOfWeek(key) - weekStart + 7) % 7;
+}
+
+function rollbackToWeekStart(key, weekStart) {
+  return addDays(key, -rowIndexOf(key, weekStart));
+}
+
+function buildDateRange(endKey, weekStart, days) {
+  var span = (typeof days === "number") ? days : 364;
+  var rawStart = addDays(endKey, -(span - 1));
+  var start = rollbackToWeekStart(rawStart, weekStart);
+  var lastDay = addDays(endKey, 6 - rowIndexOf(endKey, weekStart));
+  var keys = [];
+  var d = start;
+  while (d <= lastDay) {
+    keys.push(d);
+    d = addDays(d, 1);
+  }
+  return keys;
+}
+
+function isTargetDay(habit, dateKey) {
+  var f = habit && habit.freq ? habit.freq : { type: "daily" };
+  if (f.type === "weekdays") {
+    var days = Array.isArray(f.days) ? f.days : [];
+    return days.indexOf(dayOfWeek(dateKey)) !== -1;
+  }
+  return true;
+}
+
+function getState(logs, habitId, dateKey) {
+  var perHabit = logs && logs[habitId];
+  var v = perHabit ? perHabit[dateKey] : undefined;
+  if (v === "done") { return "done"; }
+  if (v === "skip") { return "skip"; }
+  return "not-done";
+}
+
+function computeWeeklyStreak(habit, logs, todayKey, weekStart) {
+  var ws = (weekStart === 1) ? 1 : 0;
+  var floorKey = addDays(todayKey, -STREAK_SCAN_DAYS);
+  var from = habit.createdAt > floorKey ? habit.createdAt : floorKey;
+  if (from > todayKey) { return { current: 0, longest: 0 }; }
+  var curWeekStart = rollbackToWeekStart(todayKey, ws);
+  var w = rollbackToWeekStart(from, ws);
+  /* 【N-4 修正】習慣を作成した週は「週の途中から」しか評価できないため、
+     times 回を満たしようがない週が生まれ、作成週は必ず run=0 になっていた。
+     この部分週は境界H と同じく「断絶させないが加算もしない」扱いにする。 */
+  var firstWeekStart = rollbackToWeekStart(habit.createdAt, ws);
+  var partialFirstWeek = (rowIndexOf(habit.createdAt, ws) !== 0);
+  var times = habit.freq && typeof habit.freq.times === "number" ? habit.freq.times : 1;
+  var run = 0;
+  var longest = 0;
+  while (w <= curWeekStart) {
+    var doneCount = 0;
+    var skipCount = 0;
+    for (var i = 0; i < 7; i++) {
+      var d = addDays(w, i);
+      if (d > todayKey) { break; }
+      if (d < habit.createdAt) { continue; }
+      var s = getState(logs, habit.id, d);
+      if (s === "done") { doneCount += 1; }
+      else if (s === "skip") { skipCount += 1; }
+    }
+    var required = Math.max(0, times - skipCount);
+    if (w === curWeekStart && doneCount < required) {
+      /* 境界H: 今週は進行中。未達でも断絶させない */
+    } else if (w === firstWeekStart && partialFirstWeek && doneCount < required) {
+      /* 【N-4】作成週の部分週。評価可能な日数が足りないので断絶させない */
+    } else if (required === 0 && doneCount === 0) {
+      /* 【I-2 修正】全日スキップ等で required=0 かつ実行 0 の週。
+         daily の境界B と同じく、断絶させないが加算もしない。 */
+    } else if (doneCount >= required) {
+      run += 1;
+      if (run > longest) { longest = run; }
+    } else {
+      run = 0;
+    }
+    w = addDays(w, 7);
+  }
+  return { current: run, longest: longest };
+}
+
+function computeStreak(habit, logs, todayKey, weekStart) {
+  if (habit && habit.freq && habit.freq.type === "weekly") {
+    return computeWeeklyStreak(habit, logs, todayKey, weekStart);
+  }
+  var floorKey = addDays(todayKey, -STREAK_SCAN_DAYS);
+  var start = habit.createdAt > floorKey ? habit.createdAt : floorKey;
+  if (start > todayKey) { return { current: 0, longest: 0 }; }
+
+  var run = 0;
+  var longest = 0;
+  var d = start;
+  while (d <= todayKey) {
+    if (!isTargetDay(habit, d)) {
+      d = addDays(d, 1);
+      continue;
+    }
+    var s = getState(logs, habit.id, d);
+    if (s === "done") {
+      run += 1;
+      if (run > longest) { longest = run; }
+    } else if (s === "skip") {
+      /* 境界B: 赦し。断絶させずカウントもしない */
+    } else if (d === todayKey) {
+      /* 境界A: 今日はまだ終わっていない */
+    } else {
+      run = 0;
+    }
+    d = addDays(d, 1);
+  }
+  return { current: run, longest: longest };
+}
+
+function computeDensity(habit, logs, todayKey, windowDays) {
+  var w = (typeof windowDays === "number") ? windowDays : 30;
+  var done = 0;
+  var denom = 0;
+  for (var i = 0; i < w; i++) {
+    var d = addDays(todayKey, -i);
+    if (d < habit.createdAt) { continue; }
+    if (!isTargetDay(habit, d)) { continue; }
+    var s = getState(logs, habit.id, d);
+    if (s === "skip") { continue; }
+    denom += 1;
+    if (s === "done") { done += 1; }
+  }
+  var pct = (denom === 0) ? null : Math.round((done / denom) * 100);
+  return { done: done, denom: denom, pct: pct };
+}
+
+function dailyCount(habits, logs, dateKey) {
+  var n = 0;
+  for (var i = 0; i < habits.length; i++) {
+    if (getState(logs, habits[i].id, dateKey) === "done") { n += 1; }
+  }
+  return n;
+}
+
+function quantileThresholds(counts) {
+  /* 【I-1 残件 / M-4 修正】levelOf が読むのは 3 つの境界だけなので 3 要素で返す。
+     以前は q(1.00) を計算して t[3] が死に値になり、その死に値を単調化する
+     ためだけに同じループが 2 本並んでいた。
+     戻り値は常に狭義単調増加の 3 要素で、t[2] <= (非ゼロカウントの最大値)。 */
+  if (!counts || counts.length === 0) {
+    return [1, 2, 3];
+  }
+  var sorted = counts.slice().sort(function (a, b) { return a - b; });
+  var max = sorted[sorted.length - 1];
+  /* 【N-3 修正】カウントは整数なので level 1 には t[0] >= 2 が要る。
+     値域が狭い(習慣 1〜2 個の)ユーザーでは分位点で 5 段階を作れないため、
+     値域に収まる固定帯へフォールバックし、「その人にとっての最高記録日」が
+     必ず level 4 になるようにする(以前は中段に張り付いていた)。 */
+  if (max <= 1) { return [1, 1, 1]; }
+  if (max === 2) { return [1, 2, 2]; }
+  if (max === 3) { return [1, 2, 3]; }
+
+  function q(p) {
+    var idx = Math.floor(p * (sorted.length - 1));
+    if (idx < 0) { idx = 0; }
+    if (idx > sorted.length - 1) { idx = sorted.length - 1; }
+    return sorted[idx];
+  }
+  var t = [q(0.25), q(0.50), q(0.75)];
+  /* 上から max 以下へ抑え、level 4 が必ず到達可能になるようにする */
+  if (t[2] > max) { t[2] = max; }
+  if (t[1] > t[2] - 1) { t[1] = t[2] - 1; }
+  if (t[0] > t[1] - 1) { t[0] = t[1] - 1; }
+  /* 下から狭義単調に戻す。max >= 4 なので [2,3,4] は必ず収まる */
+  if (t[0] < 2) { t[0] = 2; }
+  if (t[1] <= t[0]) { t[1] = t[0] + 1; }
+  if (t[2] <= t[1]) { t[2] = t[1] + 1; }
+  return t;
+}
+
+function levelOf(count, t) {
+  /* 【I-1 修正】3 つの境界すべてを判定に使う。以前は t[0] が未使用の死に値で、
+     level 1 の帯が不当に広く、実効 4 段階になっていた。 */
+  if (!(count > 0)) { return 0; }
+  if (count < t[0]) { return 1; }
+  if (count < t[1]) { return 2; }
+  if (count < t[2]) { return 3; }
+  return 4;
+}
+
+function heatmapLevels(cells, mode, thresholds) {
+  var out = [];
+  for (var i = 0; i < cells.length; i++) {
+    var c = cells[i];
+    if (mode === "individual") {
+      if (c.target === false) {
+        out.push({ date: c.date, level: 0, state: "off", off: true });
+      } else if (c.state === "done") {
+        out.push({ date: c.date, level: 4, state: "done", off: false });
+      } else if (c.state === "skip") {
+        out.push({ date: c.date, level: 2, state: "skip", off: false });
+      } else {
+        out.push({ date: c.date, level: 0, state: "not-done", off: false });
+      }
+    } else {
+      out.push({
+        date: c.date,
+        level: levelOf(c.count, thresholds),
+        state: "count",
+        count: c.count,
+        off: false
+      });
+    }
+  }
+  return out;
+}
+
+function cellStateText(mode, info) {
+  if (mode === "individual") {
+    if (info.state === "off") { return "対象外"; }
+    if (info.state === "done") { return "達成"; }
+    if (info.state === "skip") { return "スキップ"; }
+    return "未達成";
+  }
+  return (info.count > 0) ? (info.count + "件達成") : "記録なし";
+}
+
+function cellAriaLabel(dateKey, mode, info) {
+  return formatJa(dateKey) + weekdayLabel(dateKey) + "、" + cellStateText(mode, info);
+}
+
+/* ---- エンベロープ検証とマイグレーション(I/O を持たない) ---- */
+
+function defaultSettings() {
+  /* 【I-6 修正】既定は "system"。OS の配色に追従する。 */
+  return { weekStart: 0, theme: "system" };
+}
+
+/* 【F-02 修正】プロトタイプ関連の名前は habit id として禁止する。
+   これらを許すと sortEnvelope の logs[id] 代入がプロパティ作成ではなく
+   プロトタイプ差し替えになり、記録がサイレントに消える。 */
+var FORBIDDEN_IDS = ["__proto__", "constructor", "prototype"];
+
+/* 【F-03 修正】インポート経路にのみ適用する上限。
+   【N-2 修正】load 経路(自分が書いた保存データの受け入れ判定)には適用しない。
+   同じ関数で「他人由来の入力の検証」と「自分の保存データの受け入れ」を兼ねると、
+   将来この上限を下げた瞬間に既存ユーザーのデータが quarantine されて消える。 */
+var MAX_LOG_DAYS_PER_HABIT = 20000;
+
+function hasOwn(obj, key) {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+/* 【I-9 / N-1 修正】検証と正規化を分離する。
+   normalizeEnvelope は入力を一切変異させず、欠損を補完した新しいオブジェクトを返す。
+   validateEnvelope は真偽だけを返す純粋関数で、引数に書き込まない。
+   これで「検証に失敗したのに入力は改変済み」という状態が消え、
+   呼び出し側は失敗時に原本をそのまま退避できる。 */
+function normalizeEnvelope(obj) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) { return obj; }
+  var out = {};
+  var keys = Object.keys(obj);
+  for (var k = 0; k < keys.length; k++) { out[keys[k]] = obj[keys[k]]; }
+
+  if (Array.isArray(obj.habits)) {
+    var habits = [];
+    for (var i = 0; i < obj.habits.length; i++) {
+      var h = obj.habits[i];
+      if (!h || typeof h !== "object" || Array.isArray(h)) {
+        habits.push(h);
+        continue;
+      }
+      var nh = {};
+      var hk = Object.keys(h);
+      for (var j = 0; j < hk.length; j++) { nh[hk[j]] = h[hk[j]]; }
+      /* 【I-7】order の欠損だけを添字で補完する。不正型はそのまま残して
+         validateEnvelope に弾かせる(補完で不正値を隠さない)。 */
+      if (nh.order === undefined || nh.order === null) { nh.order = i; }
+      habits.push(nh);
+    }
+    out.habits = habits;
+  }
+
+  if (out.settings === undefined || out.settings === null) {
+    out.settings = defaultSettings();
+  } else if (typeof out.settings === "object" && !Array.isArray(out.settings)) {
+    var ns = {};
+    var sk = Object.keys(out.settings);
+    for (var s = 0; s < sk.length; s++) { ns[sk[s]] = out.settings[sk[s]]; }
+    if (ns.weekStart === undefined) { ns.weekStart = defaultSettings().weekStart; }
+    if (ns.theme === undefined) { ns.theme = defaultSettings().theme; }
+    out.settings = ns;
+  }
+  return out;
+}
+
+function validateEnvelope(obj, opts) {
+  /* opts.maxLogDays: インポート経路のみが渡す件数上限。load 経路では未指定。 */
+  var maxLogDays = (opts && typeof opts.maxLogDays === "number") ? opts.maxLogDays : Infinity;
+  var maxHabits = (opts && typeof opts.maxHabits === "number") ? opts.maxHabits : Infinity;
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) { return false; }
+  if (typeof obj.v !== "number") { return false; }
+  if (!Array.isArray(obj.habits)) { return false; }
+  if (obj.habits.length > maxHabits) { return false; }
+
+  /* 【F-01】継承プロパティ名が truthy に化けないよう素の辞書を使う */
+  var ids = Object.create(null);
+  for (var i = 0; i < obj.habits.length; i++) {
+    var h = obj.habits[i];
+    if (!h || typeof h !== "object") { return false; }
+    if (typeof h.id !== "string" || h.id.length === 0) { return false; }
+    if (FORBIDDEN_IDS.indexOf(h.id) !== -1) { return false; }
+    if (hasOwn(ids, h.id)) { return false; }
+    if (typeof h.name !== "string" || h.name.length < 1 || h.name.length > 40) { return false; }
+    if (typeof h.color !== "string" || !/^#[0-9a-fA-F]{6}$/.test(h.color)) { return false; }
+    if (!h.freq || typeof h.freq !== "object") { return false; }
+    if (["daily", "weekdays", "weekly"].indexOf(h.freq.type) === -1) { return false; }
+    if (h.freq.type === "weekdays") {
+      if (!Array.isArray(h.freq.days)) { return false; }
+      for (var k = 0; k < h.freq.days.length; k++) {
+        var dv = h.freq.days[k];
+        if (typeof dv !== "number" || dv < 0 || dv > 6) { return false; }
+      }
+    }
+    if (h.freq.type === "weekly") {
+      if (typeof h.freq.times !== "number" || h.freq.times < 1 || h.freq.times > 7) { return false; }
+    }
+    if (!isDateKey(h.createdAt)) { return false; }
+    /* 【I-7 / N-1】order は検証のみ。補完は normalizeEnvelope の責務。
+       ここで NaN/非数を弾くので sort 比較が壊れる経路は塞がれている。 */
+    if (typeof h.order !== "number" || !isFinite(h.order)) { return false; }
+    ids[h.id] = true;
+  }
+
+  if (!obj.logs || typeof obj.logs !== "object" || Array.isArray(obj.logs)) { return false; }
+  var logKeys = Object.keys(obj.logs);
+  for (var a = 0; a < logKeys.length; a++) {
+    /* 【F-01】hasOwnProperty 経由で孤児判定する */
+    if (!hasOwn(ids, logKeys[a])) { return false; }
+    var per = obj.logs[logKeys[a]];
+    if (!per || typeof per !== "object" || Array.isArray(per)) { return false; }
+    var dates = Object.keys(per);
+    if (dates.length > maxLogDays) { return false; }
+    for (var b = 0; b < dates.length; b++) {
+      if (!isDateKey(dates[b])) { return false; }
+      var val = per[dates[b]];
+      if (val !== "done" && val !== "skip") { return false; }
+    }
+  }
+
+  if (!obj.settings || typeof obj.settings !== "object" || Array.isArray(obj.settings)) { return false; }
+  if (obj.settings.weekStart !== 0 && obj.settings.weekStart !== 1) { return false; }
+  if (["system", "light", "dark"].indexOf(obj.settings.theme) === -1) { return false; }
+  return true;
+}
+
+/* 【N-2】インポート専用ラッパ。他人由来の JSON にだけ件数/サイズ上限を課す。 */
+function validateImportEnvelope(obj) {
+  return validateEnvelope(obj, { maxHabits: MAX_HABITS, maxLogDays: MAX_LOG_DAYS_PER_HABIT });
+}
+
+function migrate(obj) {
+  if (!obj || typeof obj !== "object" || Array.isArray(obj)) {
+    throw new Error("エンベロープが不正です");
+  }
+  if (typeof obj.v !== "number") {
+    throw new Error("バージョン情報がありません");
+  }
+  if (obj.v > CURRENT_VERSION) {
+    throw new Error("未来のバージョンです");
+  }
+  var cur = obj;
+  while (cur.v < CURRENT_VERSION) {
+    var step = MIGRATIONS[cur.v];
+    if (!step) { throw new Error("移行手順がありません"); }
+    cur = step(cur);
+  }
+  return cur;
+}
+
+function sortedHabits(habits) {
+  /* 【I-7】3箇所に重複していた比較を単一化。order は validateEnvelope /
+     フォーム経路で必ず有限数になるが、念のため NaN を潰す。 */
+  return habits.slice().sort(function (a, b) {
+    var ao = (typeof a.order === "number" && isFinite(a.order)) ? a.order : 0;
+    var bo = (typeof b.order === "number" && isFinite(b.order)) ? b.order : 0;
+    if (ao !== bo) { return ao - bo; }
+    return a.id < b.id ? -1 : (a.id > b.id ? 1 : 0);
+  });
+}
+
+function sortEnvelope(data) {
+  var habits = sortedHabits(data.habits);
+  /* 【F-02】__proto__ 等が代入でプロトタイプ差し替えにならない辞書を使う */
+  var logs = Object.create(null);
+  var hids = Object.keys(data.logs).sort();
+  for (var i = 0; i < hids.length; i++) {
+    var per = data.logs[hids[i]];
+    var dates = Object.keys(per).sort();
+    /* 【M-8 修正】記録を全消去した習慣は logs[id] = {} が残り続け、
+       保存 JSON に空オブジェクトが永久に蓄積していた。ここで間引く。 */
+    if (dates.length === 0) { continue; }
+    var np = Object.create(null);
+    for (var j = 0; j < dates.length; j++) { np[dates[j]] = per[dates[j]]; }
+    logs[hids[i]] = np;
+  }
+  return {
+    v: data.v,
+    settings: { weekStart: data.settings.weekStart, theme: data.settings.theme },
+    habits: habits,
+    logs: logs
+  };
+}
+/* DOMAIN:END */
+
+/* ===================== store 層 ===================== */
+
+var STORAGE_KEY = "paradise.habit.v1";
+var BACKUP_KEY_PREFIX = "paradise.habit.backup.";
+var SAVE_DEBOUNCE_MS = 400;
+
+function storageAvailable() {
+  try {
+    var ls = window.localStorage;
+    var probe = "__paradise_probe__";
+    ls.setItem(probe, "1");
+    ls.removeItem(probe);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function safeGet(key) {
+  try {
+    return window.localStorage.getItem(key);
+  } catch (e) {
+    return null;
+  }
+}
+
+function safeSet(key, value) {
+  try {
+    window.localStorage.setItem(key, value);
+    return { ok: true, error: null };
+  } catch (e) {
+    var quota =
+      (e && (e.name === "QuotaExceededError" || e.name === "NS_ERROR_DOM_QUOTA_REACHED")) ||
+      (e && (e.code === 22 || e.code === 1014));
+    return { ok: false, error: quota ? "quota" : "other" };
+  }
+}
+
+function safeRemove(key) {
+  try {
+    window.localStorage.removeItem(key);
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+
+function defaultData() {
+  /* 【M-2 修正】使われない todayKey 引数を削除。呼び出しも統一する。 */
+  return { v: CURRENT_VERSION, settings: defaultSettings(), habits: [], logs: {} };
+}
+
+var state = {
+  data: null,
+  ui: {
+    todayKey: getTodayKey(),
+    selectedHabit: null,
+    focusedCell: null,
+    storageMode: "persistent",
+    notice: null
+  }
+};
+
+var saveTimer = null;
+var saveFailCount = 0;
+var gridHadFocus = false;
+
+/* 【F-1 修正】退避に成功したときだけ本キーを削除する。
+   退避できない状況(quota 枯渇など)で削除すると全記録が消えるため、
+   壊れたデータをそのまま残し、false を返して呼び出し側に知らせる。 */
+function quarantine(raw) {
+  if (typeof raw !== "string") {
+    safeRemove(STORAGE_KEY);
+    return true;
+  }
+  var res = safeSet(BACKUP_KEY_PREFIX + Date.now(), raw);
+  if (!res || !res.ok) {
+    return false;
+  }
+  safeRemove(STORAGE_KEY);
+  return true;
+}
+
+var QUARANTINE_FAIL_TEXT =
+  "保存データを読み込めませんでしたが、退避にも失敗したため元データを残したまま初期状態で起動しました。上書き保存は停止しています。";
+
+function loadState() {
+  state.ui.todayKey = getTodayKey();
+  if (!storageAvailable()) {
+    state.ui.storageMode = "memory";
+    state.data = defaultData();
+    return;
+  }
+  var raw = null;
+  try {
+    raw = safeGet(STORAGE_KEY);
+    if (raw === null || raw === undefined) {
+      state.data = defaultData();
+      return;
+    }
+    var parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (parseErr) {
+      var qa = quarantine(raw);
+      state.data = defaultData();
+      if (!qa) { state.ui.storageMode = "memory"; }
+      state.ui.notice = qa
+        ? { kind: "warn", text: "保存データが壊れていたため退避し、初期状態で起動しました。" }
+        : { kind: "error", text: QUARANTINE_FAIL_TEXT };
+      return;
+    }
+    var migrated = null;
+    try {
+      migrated = migrate(parsed);
+    } catch (migErr) {
+      var qb = quarantine(raw);
+      state.data = defaultData();
+      if (!qb) { state.ui.storageMode = "memory"; }
+      state.ui.notice = qb
+        ? { kind: "warn", text: "保存データを読み込めなかったため退避し、初期状態で起動しました。" }
+        : { kind: "error", text: QUARANTINE_FAIL_TEXT };
+      return;
+    }
+    /* 【N-1】原本を変異させず、正規化した別オブジェクトを検証する。
+       失敗したときに quarantine へ渡す raw は完全な原本のままである。
+       【N-2】load 経路では件数上限を課さない(超過を理由に自分の保存データを
+       捨てない)。上限はインポート経路専用。 */
+    var normalized = normalizeEnvelope(migrated);
+    if (!validateEnvelope(normalized)) {
+      var qc = quarantine(raw);
+      state.data = defaultData();
+      if (!qc) { state.ui.storageMode = "memory"; }
+      state.ui.notice = qc
+        ? { kind: "warn", text: "保存データの形式が不正だったため退避し、初期状態で起動しました。" }
+        : { kind: "error", text: QUARANTINE_FAIL_TEXT };
+      return;
+    }
+    state.data = normalized;
+  } catch (fatal) {
+    state.data = defaultData();
+    state.ui.notice = { kind: "warn", text: "起動時に問題が発生したため、初期状態で開始しました。" };
+  }
+}
+
+function scheduleSave() {
+  /* 【M-3 修正】未使用の data 引数を削除。保存対象は常に state.data。 */
+  if (state.ui.storageMode === "memory") { return; }
+  if (saveTimer !== null) { clearTimeout(saveTimer); }
+  saveTimer = setTimeout(flushSaveAndRender, SAVE_DEBOUNCE_MS);
+}
+
+function flushSave() {
+  /* 戻り値: true=保存できた / 保存する必要が無かった、false=失敗して UI 更新が要る */
+  if (saveTimer !== null) { clearTimeout(saveTimer); saveTimer = null; }
+  if (state.ui.storageMode === "memory" || !state.data) { return true; }
+  var payload;
+  try {
+    payload = JSON.stringify(sortEnvelope(state.data));
+  } catch (e) {
+    return true;
+  }
+  var res = safeSet(STORAGE_KEY, payload);
+  if (res.ok) {
+    saveFailCount = 0;
+    return true;
+  }
+  saveFailCount += 1;
+  if (res.error === "quota") {
+    state.ui.notice = { kind: "error", text: "保存容量の上限に達しました。エクスポートしてから古いデータを整理してください" };
+  }
+  if (res.error !== "quota" || saveFailCount >= 3) {
+    state.ui.storageMode = "memory";
+  }
+  /* 【I-5 修正】store 層から render 層を直接呼ばない。表示すべき変化が
+     あったことだけを返し、描画は呼び出し側(event 層)に委ねる。
+     pagehide 経由で呼ばれたときにページ破棄中の DOM 書き込みも起きなくなる。 */
+  return false;
+}
+
+/* 【I-5】event 層から使う薄いラッパ。保存して、必要なら描画を更新する。 */
+function flushSaveAndRender() {
+  if (flushSave() === false) {
+    renderStorageWarning(state);
+    renderNotice(state);
+  }
+}
+
+function exportJson(data) {
+  var text = JSON.stringify(sortEnvelope(data), null, 2);
+  var blob = new Blob([text], { type: "application/json" });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement("a");
+  a.href = url;
+  a.download = "habit-" + getTodayKey() + ".json";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  /* 【I-10 修正】a.click() はダウンロードを非同期に開始する。同一タスク内で
+     revoke すると Firefox / 一部 Safari で 0 バイトファイルまたは不発になり、
+     しかも例外が出ないためユーザーは「バックアップを取った」と誤認する。 */
+  setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+}
+
+/* 【N-5 修正】上限を単位ごとに分ける。以前は File.size(バイト)と
+   String.length(UTF-16 コードユニット数)に同じ定数を使っていたため、
+   日本語主体の JSON では後段のチェックが実質 3 倍緩かった。 */
+var MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+var MAX_IMPORT_CHARS = MAX_IMPORT_BYTES / 2;
+
+function importJson(file, onOk, onErr) {
+  /* 【F-03 修正】ファイルサイズの上限をインポート経路に適用 */
+  if (file && typeof file.size === "number" && file.size > MAX_IMPORT_BYTES) {
+    onErr("ファイルが大きすぎます(2MBまで)。既存のデータは変更していません。");
+    return;
+  }
+  var reader = new FileReader();
+  reader.onerror = function () { onErr("ファイルを読み込めませんでした。"); };
+  reader.onload = function () {
+    var text = String(reader.result);
+    if (text.length > MAX_IMPORT_CHARS) {
+      onErr("ファイルが大きすぎます(2MBまで)。既存のデータは変更していません。");
+      return;
+    }
+    var obj;
+    try {
+      obj = JSON.parse(text);
+    } catch (e) {
+      onErr("JSON として解析できませんでした。既存のデータは変更していません。");
+      return;
+    }
+    var migrated;
+    try {
+      migrated = migrate(obj);
+    } catch (e2) {
+      onErr("バージョンを解釈できませんでした。既存のデータは変更していません。");
+      return;
+    }
+    /* 【N-1】原本を変異させず正規化コピーを検証する。
+       【N-2】インポートは他人由来の入力なので専用ラッパで上限を課す。 */
+    var normalized = normalizeEnvelope(migrated);
+    if (!validateImportEnvelope(normalized)) {
+      onErr("データ形式が不正です。既存のデータは変更していません。");
+      return;
+    }
+    onOk(normalized);
+  };
+  reader.readAsText(file);
+}
+
+/* ===================== render 層 ===================== */
+
+var el = {
+  storageWarning: document.getElementById("storage-warning"),
+  notice: document.getElementById("notice"),
+  todaySection: document.getElementById("today-section"),
+  todayLabel: document.getElementById("today-label"),
+  todayList: document.getElementById("today-list"),
+  limitHint: document.getElementById("habit-limit-hint"),
+  emptyState: document.getElementById("empty-state"),
+  heatmapSection: document.getElementById("heatmap-section"),
+  hmTarget: document.getElementById("hm-target"),
+  hmModeHint: document.getElementById("hm-mode-hint"),
+  hmGrid: document.getElementById("hm-grid"),
+  hmWeekdays: document.getElementById("hm-weekdays"),
+  hmMonths: document.getElementById("hm-months"),
+  settingsSection: document.getElementById("settings-section"),
+  weekStart: document.getElementById("s-weekstart"),
+  themeSelect: document.getElementById("theme-select"),
+  tooltip: document.getElementById("tooltip"),
+  habitAdmin: document.getElementById("habit-admin"),
+  form: document.getElementById("habit-form"),
+  fName: document.getElementById("f-name"),
+  fColor: document.getElementById("f-color"),
+  fType: document.getElementById("f-type"),
+  fDaysBox: document.getElementById("f-days-box"),
+  fTimesBox: document.getElementById("f-times-box"),
+  fTimes: document.getElementById("f-times"),
+  fSubmit: document.getElementById("f-submit"),
+  fCancel: document.getElementById("f-cancel")
+};
+
+function clear(node) {
+  while (node.firstChild) { node.removeChild(node.firstChild); }
+}
+
+function applyTheme(theme) {
+  if (theme === "light" || theme === "dark") {
+    document.documentElement.setAttribute("data-theme", theme);
+  } else {
+    document.documentElement.removeAttribute("data-theme");
+  }
+}
+
+function renderStorageWarning(st) {
+  if (st.ui.storageMode === "memory") {
+    el.storageWarning.hidden = false;
+    el.storageWarning.textContent =
+      "この環境ではブラウザに保存できませんでした。記録はこのセッションでのみ保持されます。必要な場合はエクスポートしてください。";
+  } else {
+    el.storageWarning.hidden = true;
+    el.storageWarning.textContent = "";
+  }
+}
+
+function renderNotice(st) {
+  el.notice.textContent = st.ui.notice ? st.ui.notice.text : "";
+}
+
+function renderEmptyState(st) {
+  var empty = st.data.habits.length === 0;
+  el.emptyState.hidden = !empty;
+  el.heatmapSection.hidden = empty;
+}
+
+function freqText(habit) {
+  var f = habit.freq;
+  if (f.type === "daily") { return "毎日"; }
+  if (f.type === "weekly") { return "週" + f.times + "回"; }
+  var days = (f.days || []).slice().sort(function (a, b) { return a - b; });
+  var names = days.map(function (d) { return WEEKDAY_SHORT[d]; });
+  return names.length ? names.join("・") : "曜日未設定";
+}
+
+function renderHabitLimitHint(st) {
+  if (st.data.habits.length > HINT_HABITS) {
+    el.limitHint.hidden = false;
+    el.limitHint.textContent =
+      "習慣が" + st.data.habits.length + "個になりました。続けやすさを考えると、まずは6個以内に絞るのがおすすめです(上限は" + MAX_HABITS + "個)。";
+  } else {
+    el.limitHint.hidden = true;
+    el.limitHint.textContent = "";
+  }
+}
+
+function renderTodayList(st) {
+  clear(el.todayList);
+  var todayKey = st.ui.todayKey;
+  el.todayLabel.textContent = formatJa(todayKey) + weekdayLabel(todayKey);
+
+  var habits = sortedHabits(st.data.habits);
+  for (var i = 0; i < habits.length; i++) {
+    var h = habits[i];
+    if (!isTargetDay(h, todayKey)) { continue; }
+
+    var row = document.createElement("div");
+    row.className = "row";
+
+    var btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "row-main";
+    var done = getState(st.data.logs, h.id, todayKey) === "done";
+    btn.setAttribute("aria-pressed", done ? "true" : "false");
+    btn.dataset.habit = h.id;
+
+    var dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.setProperty("--accent", h.color);
+    btn.appendChild(dot);
+
+    var check = document.createElement("span");
+    check.className = "check";
+    check.setAttribute("aria-hidden", "true");
+    check.textContent = "✓";
+    btn.appendChild(check);
+
+    var body = document.createElement("span");
+    body.className = "row-body";
+
+    var nameEl = document.createElement("span");
+    nameEl.className = "row-name";
+    nameEl.textContent = h.name;
+    body.appendChild(nameEl);
+
+    var streak = computeStreak(h, st.data.logs, todayKey, st.data.settings.weekStart);
+    var dens = computeDensity(h, st.data.logs, todayKey, 30);
+    var densText = (dens.denom === 0) ? "—" : (dens.done + "/" + dens.denom + " (" + dens.pct + "%)");
+
+    var stats = document.createElement("span");
+    stats.className = "row-stats";
+    stats.textContent =
+      freqText(h) + " ・ 現在 " + streak.current + "日 ・ 最長 " + streak.longest + "日 ・ 達成率 " + densText;
+    body.appendChild(document.createElement("br"));
+    body.appendChild(stats);
+
+    btn.appendChild(body);
+    row.appendChild(btn);
+    el.todayList.appendChild(row);
+  }
+
+  if (el.todayList.childNodes.length === 0 && habits.length > 0) {
+    var none = document.createElement("p");
+    none.className = "subtle";
+    none.textContent = "今日が対象の習慣はありません。ゆっくり休んでください。";
+    el.todayList.appendChild(none);
+  }
+}
+
+function renderHabitAdmin(st) {
+  clear(el.habitAdmin);
+  var habits = sortedHabits(st.data.habits);
+  if (habits.length === 0) {
+    var p = document.createElement("p");
+    p.className = "subtle";
+    p.textContent = "登録された習慣はまだありません。";
+    el.habitAdmin.appendChild(p);
+    return;
+  }
+  for (var i = 0; i < habits.length; i++) {
+    var h = habits[i];
+    var r = document.createElement("div");
+    r.className = "admin-row";
+
+    var dot = document.createElement("span");
+    dot.className = "dot";
+    dot.style.setProperty("--accent", h.color);
+    r.appendChild(dot);
+
+    var nm = document.createElement("span");
+    nm.className = "name";
+    nm.textContent = h.name + "(" + freqText(h) + ")";
+    r.appendChild(nm);
+
+    var edit = document.createElement("button");
+    edit.type = "button";
+    edit.className = "btn ghost";
+    edit.textContent = "編集";
+    edit.dataset.edit = h.id;
+    r.appendChild(edit);
+
+    var del = document.createElement("button");
+    del.type = "button";
+    del.className = "btn danger";
+    del.textContent = "削除";
+    del.dataset.del = h.id;
+    r.appendChild(del);
+
+    el.habitAdmin.appendChild(r);
+  }
+}
+
+function renderHeatmapControls(st) {
+  /* 【I-4 修正】render 層は state を書き換えない。選択中の習慣が消えている
+     場合の正規化は render 前(reconcileUiState)で済ませてある。 */
+  var prev = st.ui.selectedHabit === null ? "" : st.ui.selectedHabit;
+  clear(el.hmTarget);
+  var optAll = document.createElement("option");
+  optAll.value = "";
+  optAll.textContent = "全習慣まとめ";
+  el.hmTarget.appendChild(optAll);
+  var habits = sortedHabits(st.data.habits);
+  for (var i = 0; i < habits.length; i++) {
+    var o = document.createElement("option");
+    o.value = habits[i].id;
+    o.textContent = habits[i].name;
+    el.hmTarget.appendChild(o);
+  }
+  el.hmTarget.value = prev;
+  el.hmModeHint.textContent =
+    st.ui.selectedHabit === null ? "色の濃さ = その日に達成した習慣の数" : "濃い=達成 / 斜線=スキップ / 枠線=対象外の日";
+}
+
+function renderHeatmap(st) {
+  var weekStart = st.data.settings.weekStart;
+  var todayKey = st.ui.todayKey;
+  var range = buildDateRange(todayKey, weekStart, 364);
+  var mode = st.ui.selectedHabit === null ? "overall" : "individual";
+  var habit = null;
+  if (mode === "individual") {
+    for (var q = 0; q < st.data.habits.length; q++) {
+      if (st.data.habits[q].id === st.ui.selectedHabit) { habit = st.data.habits[q]; }
+    }
+    if (!habit) { mode = "overall"; }
+  }
+
+  var cells = [];
+  var nonZero = [];
+  for (var i = 0; i < range.length; i++) {
+    var key = range[i];
+    if (mode === "individual") {
+      cells.push({
+        date: key,
+        target: isTargetDay(habit, key),
+        state: getState(st.data.logs, habit.id, key)
+      });
+    } else {
+      var c = (key > todayKey) ? 0 : dailyCount(st.data.habits, st.data.logs, key);
+      if (c > 0) { nonZero.push(c); }
+      cells.push({ date: key, count: c });
+    }
+  }
+  var thresholds = quantileThresholds(nonZero);
+  var infos = heatmapLevels(cells, mode, thresholds);
+
+  /* 曜日ラベル(週開始曜日に追従して回転) */
+  clear(el.hmWeekdays);
+  var labels = rotatedWeekdayShort(weekStart);
+  for (var w = 0; w < 7; w++) {
+    var sp = document.createElement("span");
+    sp.textContent = (w % 2 === 1) ? labels[w] : "";
+    el.hmWeekdays.appendChild(sp);
+  }
+
+  /* 月ラベル(週=列ごとに1要素) */
+  clear(el.hmMonths);
+  var lastYm = "";
+  for (var col = 0; col * 7 < range.length; col++) {
+    var head = range[col * 7];
+    var p = parseKey(head);
+    var ym = p.y + "-" + p.m;
+    var ms = document.createElement("span");
+    /* 【I-3 修正】年月で比較する。月番号だけだと 13 か月にまたがる範囲で
+       末尾の同月ラベルが欠落する。 */
+    if (ym !== lastYm && p.d <= 7) {
+      ms.textContent = p.m + "月";
+      lastYm = ym;
+    } else {
+      ms.textContent = "";
+    }
+    el.hmMonths.appendChild(ms);
+  }
+
+  /* セル */
+  clear(el.hmGrid);
+  for (var j = 0; j < infos.length; j++) {
+    var info = infos[j];
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "hm-cell";
+    /* 【I-8 修正】role="grid" の内側に row が 1 つも無い不正な入れ子だった。
+       親を role="group" に変え、セルは素の button のままにする(嘘の
+       ARIA 構造を宣言しない)。 */
+    b.dataset.date = info.date;
+    b.dataset.level = String(info.level);
+    b.dataset.state = info.state;
+    if (info.off) { b.dataset.offday = "true"; }
+    if (info.date > todayKey) {
+      b.dataset.future = "true";
+      b.disabled = true;
+    } else if (mode === "overall") {
+      /* 【M-5 修正】まとめモードのセルはクリックしても何も起きない。
+         見た目上は押せそうなのに無反応なのは支援技術にも誤情報なので、
+         操作不能であることを明示する。 */
+      b.setAttribute("aria-disabled", "true");
+    }
+    b.tabIndex = -1;
+    b.setAttribute("aria-label", cellAriaLabel(info.date, mode, info));
+    el.hmGrid.appendChild(b);
+  }
+
+  /* 【I-4】決定したフォーカスキーは戻り値で返し、state への反映は
+     呼び出し側(render の戻り値を受ける rerender)が行う。 */
+  return applyRovingTabindex(el.hmGrid, st.ui.focusedCell, todayKey);
+}
+
+function lastSelectableKey(gridEl) {
+  var cells = gridEl.querySelectorAll(".hm-cell:not([data-future='true'])");
+  if (cells.length === 0) { return null; }
+  return cells[cells.length - 1].dataset.date;
+}
+
+function applyRovingTabindex(gridEl, focusedKey, todayKey) {
+  /* 【I-4 修正】グローバル state を読まず、todayKey を引数で受ける。
+     state への書き戻しもしない。決定したキーを戻り値で返す。 */
+  var all = gridEl.querySelectorAll(".hm-cell");
+  if (all.length === 0) { return null; }
+  var tk = todayKey || state.ui.todayKey;
+  var target = null;
+  if (focusedKey) {
+    target = gridEl.querySelector('.hm-cell[data-date="' + focusedKey + '"]:not([data-future="true"])');
+  }
+  if (!target) {
+    target = gridEl.querySelector('.hm-cell[data-date="' + tk + '"]');
+  }
+  if (!target || target.dataset.future === "true") {
+    var lk = lastSelectableKey(gridEl);
+    target = lk ? gridEl.querySelector('.hm-cell[data-date="' + lk + '"]') : all[0];
+  }
+  for (var i = 0; i < all.length; i++) { all[i].tabIndex = -1; }
+  target.tabIndex = 0;
+  if (gridHadFocus) { target.focus(); }
+  return target.dataset.date;
+}
+
+/* 【I-4 修正】render の前に UI state を整合させる。render 層が state を
+   書き換えるのではなく、描画前にここで一度だけ正規化する。 */
+function reconcileUiState(st) {
+  if (st.ui.selectedHabit !== null) {
+    var found = false;
+    for (var i = 0; i < st.data.habits.length; i++) {
+      if (st.data.habits[i].id === st.ui.selectedHabit) { found = true; }
+    }
+    if (!found) { st.ui.selectedHabit = null; }
+  }
+}
+
+function render(st) {
+  reconcileUiState(st);
+  applyTheme(st.data.settings.theme);
+  el.themeSelect.value = st.data.settings.theme;
+  el.weekStart.value = String(st.data.settings.weekStart);
+  renderStorageWarning(st);
+  renderNotice(st);
+  renderEmptyState(st);
+  renderTodayList(st);
+  renderHabitLimitHint(st);
+  renderHabitAdmin(st);
+  renderHeatmapControls(st);
+  var focused = null;
+  if (!el.heatmapSection.hidden) {
+    focused = renderHeatmap(st);
+  } else {
+    clear(el.hmGrid);
+  }
+  /* 【I-4】render 自身は state を書かず、決めたフォーカスキーを返す。 */
+  return focused;
+}
+
+function rerender() {
+  var focused = render(state);
+  /* state への反映は render 層の外側で行う */
+  if (focused !== null && focused !== undefined) { state.ui.focusedCell = focused; }
+}
+
+/* ===================== event 層 ===================== */
+
+function commit(mutator) {
+  mutator(state.data);
+  /* 【M-9 修正】起動時の破損通知などが操作後も残り続けていた。
+     ユーザーが何か操作した時点で、前の通知は役目を終えている。
+     storageMode=memory の警告は renderStorageWarning が別途出すので消えない。 */
+  state.ui.notice = null;
+  scheduleSave();
+  rerender();
+}
+
+function setNotice(text) {
+  state.ui.notice = text ? { kind: "info", text: text } : null;
+}
+
+function onTodayRowClick(habitId) {
+  var key = state.ui.todayKey;
+  commit(function (data) {
+    if (!data.logs[habitId]) { data.logs[habitId] = {}; }
+    if (data.logs[habitId][key] === "done") {
+      delete data.logs[habitId][key];
+    } else {
+      data.logs[habitId][key] = "done";
+    }
+  });
+}
+
+function onCellClick(habitId, dateKey) {
+  if (dateKey > state.ui.todayKey) { return; }
+  commit(function (data) {
+    if (!data.logs[habitId]) { data.logs[habitId] = {}; }
+    var cur = data.logs[habitId][dateKey];
+    if (cur === "done") {
+      data.logs[habitId][dateKey] = "skip";
+    } else if (cur === "skip") {
+      delete data.logs[habitId][dateKey];
+    } else {
+      data.logs[habitId][dateKey] = "done";
+    }
+  });
+}
+
+function moveFocusTo(newKey) {
+  var cell = el.hmGrid.querySelector('.hm-cell[data-date="' + newKey + '"]');
+  if (!cell || cell.dataset.future === "true") { return; }
+  gridHadFocus = true;
+  state.ui.focusedCell = newKey;
+  applyRovingTabindex(el.hmGrid, newKey, state.ui.todayKey);
+}
+
+/* 【M-6】同じ曜日(行)の中で最初/最後の選択可能なセルを求める。
+   グリッドは列=週なので、行内移動は 7 日刻みで走査する。 */
+function rowHomeKey(cur) {
+  var k = cur;
+  while (true) {
+    var prev = addDays(k, -7);
+    if (!el.hmGrid.querySelector('.hm-cell[data-date="' + prev + '"]')) { return k; }
+    k = prev;
+  }
+}
+
+function rowEndKey(cur) {
+  var k = cur;
+  while (true) {
+    var next = addDays(k, 7);
+    var c = el.hmGrid.querySelector('.hm-cell[data-date="' + next + '"]:not([data-future="true"])');
+    if (!c) { return k; }
+    k = next;
+  }
+}
+
+function onGridKeydown(e) {
+  var cur = state.ui.focusedCell;
+  if (!cur) { return; }
+  var delta = 0;
+  if (e.key === "ArrowLeft" || e.key === "ArrowUp") { delta = -1; }
+  else if (e.key === "ArrowRight" || e.key === "ArrowDown") { delta = 1; }
+  else if (e.key === "PageUp") { delta = -7; }
+  else if (e.key === "PageDown") { delta = 7; }
+  else if (e.key === "Home") {
+    /* 【M-6 修正】グリッド全体端ではなく「その行(=曜日)の先頭週」へ移す。
+       ヒートマップは列=週・行=曜日なので、行内移動が WAI-ARIA の
+       Home/End の意味に合う。全体端は Ctrl+Home / Ctrl+End に割り当てる。 */
+    if (e.ctrlKey) {
+      var firstCell = el.hmGrid.querySelector(".hm-cell");
+      if (firstCell) { e.preventDefault(); moveFocusTo(firstCell.dataset.date); }
+      return;
+    }
+    e.preventDefault();
+    moveFocusTo(rowHomeKey(cur));
+    return;
+  } else if (e.key === "End") {
+    if (e.ctrlKey) {
+      var lkAll = lastSelectableKey(el.hmGrid);
+      if (lkAll) { e.preventDefault(); moveFocusTo(lkAll); }
+      return;
+    }
+    e.preventDefault();
+    moveFocusTo(rowEndKey(cur));
+    return;
+  } else {
+    return;
+  }
+  e.preventDefault();
+  moveFocusTo(addDays(cur, delta));
+}
+
+function showTooltip(cellEl, text) {
+  el.tooltip.textContent = text;
+  el.tooltip.hidden = false;
+  var r = cellEl.getBoundingClientRect();
+  var tr = el.tooltip.getBoundingClientRect();
+  var x = r.left + r.width / 2 - tr.width / 2;
+  if (x < 6) { x = 6; }
+  if (x + tr.width > window.innerWidth - 6) { x = window.innerWidth - 6 - tr.width; }
+  var y = r.top - tr.height - 8;
+  if (y < 6) { y = r.bottom + 8; }
+  el.tooltip.style.left = x + "px";
+  el.tooltip.style.top = y + "px";
+}
+
+function hideTooltip() {
+  el.tooltip.hidden = true;
+}
+
+function onAddHabit(name, color, freq) {
+  if (state.data.habits.length >= MAX_HABITS) {
+    setNotice("習慣は" + MAX_HABITS + "個までです。整理してから追加してください。");
+    rerender();
+    return false;
+  }
+  var id = "h_" + Date.now() + "_" + String(Math.floor(1000 + Math.random() * 9000));
+  commit(function (data) {
+    data.habits.push({
+      id: id,
+      name: name,
+      color: color,
+      freq: freq,
+      createdAt: state.ui.todayKey,
+      order: data.habits.length
+    });
+  });
+  return true;
+}
+
+function onEditHabit(id, patch) {
+  commit(function (data) {
+    for (var i = 0; i < data.habits.length; i++) {
+      if (data.habits[i].id === id) {
+        if (patch.name !== undefined) { data.habits[i].name = patch.name; }
+        if (patch.color !== undefined) { data.habits[i].color = patch.color; }
+        if (patch.freq !== undefined) { data.habits[i].freq = patch.freq; }
+      }
+    }
+  });
+}
+
+function onDeleteHabit(id) {
+  commit(function (data) {
+    data.habits = data.habits.filter(function (h) { return h.id !== id; });
+    delete data.logs[id];
+    for (var i = 0; i < data.habits.length; i++) { data.habits[i].order = i; }
+  });
+}
+
+function onWeekStartChange(v) {
+  var ws = (String(v) === "1") ? 1 : 0;
+  commit(function (data) { data.settings.weekStart = ws; });
+}
+
+function onThemeChange(v) {
+  commit(function (data) { data.settings.theme = v; });
+}
+
+function onHabitSelectChange(id) {
+  state.ui.selectedHabit = (id === "" || id === null) ? null : id;
+  rerender();
+}
+
+function onVisibilityChange() {
+  if (document.visibilityState === "visible") {
+    var k = getTodayKey();
+    if (k !== state.ui.todayKey) {
+      state.ui.todayKey = k;
+      rerender();
+    }
+  } else {
+    flushSave();
+  }
+}
+
+/* ---- フォーム状態 ---- */
+var editingId = null;
+
+function buildDayChips() {
+  clear(el.fDaysBox);
+  for (var i = 0; i < 7; i++) {
+    var lab = document.createElement("label");
+    lab.className = "day-chip";
+    var cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.value = String(i);
+    lab.appendChild(cb);
+    var t = document.createElement("span");
+    t.textContent = WEEKDAY_SHORT[i];
+    lab.appendChild(t);
+    el.fDaysBox.appendChild(lab);
+  }
+  el.fDaysBox.addEventListener("change", function (e) {
+    var l = e.target.closest(".day-chip");
+    if (l) { l.classList.toggle("on", e.target.checked); }
+  });
+}
+
+function syncFormMode() {
+  var t = el.fType.value;
+  el.fDaysBox.hidden = (t !== "weekdays");
+  el.fTimesBox.hidden = (t !== "weekly");
+}
+
+function readFreqFromForm() {
+  var t = el.fType.value;
+  if (t === "weekdays") {
+    var days = [];
+    var boxes = el.fDaysBox.querySelectorAll("input[type='checkbox']");
+    for (var i = 0; i < boxes.length; i++) {
+      if (boxes[i].checked) { days.push(Number(boxes[i].value)); }
+    }
+    if (days.length === 0) { return null; }
+    return { type: "weekdays", days: days };
+  }
+  if (t === "weekly") {
+    var times = Number(el.fTimes.value);
+    if (!(times >= 1 && times <= 7)) { return null; }
+    return { type: "weekly", times: Math.floor(times) };
+  }
+  return { type: "daily" };
+}
+
+function resetForm() {
+  editingId = null;
+  el.form.reset();
+  el.fColor.value = "#3fb950";
+  var boxes = el.fDaysBox.querySelectorAll("input[type='checkbox']");
+  for (var i = 0; i < boxes.length; i++) {
+    boxes[i].checked = false;
+    boxes[i].closest(".day-chip").classList.remove("on");
+  }
+  el.fSubmit.textContent = "追加する";
+  el.fCancel.hidden = true;
+  syncFormMode();
+}
+
+function loadHabitIntoForm(id) {
+  var h = null;
+  for (var i = 0; i < state.data.habits.length; i++) {
+    if (state.data.habits[i].id === id) { h = state.data.habits[i]; }
+  }
+  if (!h) { return; }
+  editingId = id;
+  el.fName.value = h.name;
+  el.fColor.value = h.color;
+  el.fType.value = h.freq.type;
+  syncFormMode();
+  var boxes = el.fDaysBox.querySelectorAll("input[type='checkbox']");
+  for (var j = 0; j < boxes.length; j++) {
+    var on = h.freq.type === "weekdays" && (h.freq.days || []).indexOf(Number(boxes[j].value)) !== -1;
+    boxes[j].checked = on;
+    boxes[j].closest(".day-chip").classList.toggle("on", on);
+  }
+  if (h.freq.type === "weekly") { el.fTimes.value = String(h.freq.times); }
+  el.fSubmit.textContent = "変更を保存";
+  el.fCancel.hidden = false;
+  el.fName.focus();
+}
+
+/* ---- 配線 ---- */
+
+function wire() {
+  buildDayChips();
+  syncFormMode();
+
+  el.fType.addEventListener("change", syncFormMode);
+  el.fCancel.addEventListener("click", resetForm);
+
+  el.form.addEventListener("submit", function (e) {
+    e.preventDefault();
+    var name = el.fName.value.trim();
+    if (name.length < 1 || name.length > 40) {
+      setNotice("習慣名は1〜40文字で入力してください。");
+      rerender();
+      return;
+    }
+    var freq = readFreqFromForm();
+    if (!freq) {
+      setNotice("頻度の設定を確認してください(曜日は1つ以上、週N回は1〜7)。");
+      rerender();
+      return;
+    }
+    var color = el.fColor.value;
+    if (!/^#[0-9a-fA-F]{6}$/.test(color)) { color = "#3fb950"; }
+    setNotice(null);
+    if (editingId) {
+      var eid = editingId;
+      resetForm();
+      onEditHabit(eid, { name: name, color: color, freq: freq });
+    } else {
+      var ok = onAddHabit(name, color, freq);
+      if (ok) { resetForm(); }
+    }
+  });
+
+  el.todayList.addEventListener("click", function (e) {
+    var b = e.target.closest(".row-main");
+    if (b && b.dataset.habit) { onTodayRowClick(b.dataset.habit); }
+  });
+
+  el.habitAdmin.addEventListener("click", function (e) {
+    var edit = e.target.closest("[data-edit]");
+    if (edit) { loadHabitIntoForm(edit.dataset.edit); return; }
+    var del = e.target.closest("[data-del]");
+    if (del) {
+      var id = del.dataset.del;
+      var name = "";
+      for (var i = 0; i < state.data.habits.length; i++) {
+        if (state.data.habits[i].id === id) { name = state.data.habits[i].name; }
+      }
+      if (window.confirm("「" + name + "」と、その記録をすべて削除します。よろしいですか?")) {
+        if (editingId === id) { resetForm(); }
+        onDeleteHabit(id);
+      }
+    }
+  });
+
+  el.hmTarget.addEventListener("change", function () {
+    onHabitSelectChange(el.hmTarget.value);
+  });
+
+  el.hmGrid.addEventListener("click", function (e) {
+    var c = e.target.closest(".hm-cell");
+    if (!c) { return; }
+    gridHadFocus = true;
+    state.ui.focusedCell = c.dataset.date;
+    showTooltip(c, c.getAttribute("aria-label"));
+    if (state.ui.selectedHabit !== null) {
+      onCellClick(state.ui.selectedHabit, c.dataset.date);
+    }
+  });
+
+  el.hmGrid.addEventListener("keydown", onGridKeydown);
+
+  el.hmGrid.addEventListener("mouseover", function (e) {
+    var c = e.target.closest(".hm-cell");
+    if (c) { showTooltip(c, c.getAttribute("aria-label")); }
+  });
+  /* mouseenter はバブルしないので capture 段階でも拾う(AC-26 hover 経路) */
+  el.hmGrid.addEventListener("mouseenter", function (e) {
+    var c = e.target && e.target.closest ? e.target.closest(".hm-cell") : null;
+    if (c) { showTooltip(c, c.getAttribute("aria-label")); }
+  }, true);
+  el.hmGrid.addEventListener("touchstart", function (e) {
+    var c = e.target.closest(".hm-cell");
+    if (c) { showTooltip(c, c.getAttribute("aria-label")); }
+  }, { passive: true });
+  el.hmGrid.addEventListener("mouseleave", hideTooltip);
+  el.hmGrid.addEventListener("focusin", function (e) {
+    var c = e.target.closest(".hm-cell");
+    if (c) {
+      gridHadFocus = true;
+      showTooltip(c, c.getAttribute("aria-label"));
+    }
+  });
+  el.hmGrid.addEventListener("focusout", function () {
+    gridHadFocus = false;
+    hideTooltip();
+  });
+  document.addEventListener("click", function (e) {
+    if (!e.target.closest(".hm-cell")) { hideTooltip(); }
+  });
+
+  el.weekStart.addEventListener("change", function () { onWeekStartChange(el.weekStart.value); });
+  el.themeSelect.addEventListener("change", function () { onThemeChange(el.themeSelect.value); });
+
+  document.getElementById("btn-goto-settings").addEventListener("click", function () {
+    el.settingsSection.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  document.getElementById("btn-export").addEventListener("click", function () {
+    exportJson(state.data);
+  });
+
+  document.getElementById("file-import").addEventListener("change", function (e) {
+    var f = e.target.files && e.target.files[0];
+    if (!f) { return; }
+    importJson(f, function (obj) {
+      state.data = obj;
+      state.ui.selectedHabit = null;
+      setNotice("インポートしました(習慣 " + obj.habits.length + " 件)。");
+      flushSaveAndRender();
+      rerender();
+    }, function (msg) {
+      setNotice(msg);
+      rerender();
+    });
+    e.target.value = "";
+  });
+
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  /* 【I-5 修正】pagehide は生の flushSave を使う。ページ破棄中に DOM を
+     書き換えないため、render 層を呼ばない方の入口を選ぶ。 */
+  window.addEventListener("pagehide", function () { flushSave(); });
+}
+
+/* ---- 起動 ---- */
+loadState();
+wire();
+rerender();
+</script>
+</body>
+</html>
