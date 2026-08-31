@@ -1,0 +1,371 @@
+{
+  "meta": {
+    "wish": "楽園に改善の数値的証明機構を築く: エージェント自身の性能を測るevalが無い。outcomeだけでなくtrajectoryを採点し、改善の前後を数値で示せるようにせよ",
+    "scale": "reform",
+    "created": "2026-08-31T13:39:35.995Z",
+    "constitution": [
+      "Spec is the source of truth — code serves the spec, not the reverse.",
+      "Every phase is gated — no phase advances on unverified assumptions.",
+      "Independent work runs in parallel; dependent work runs in order.",
+      "Verification precedes judgment; judgment precedes shipping.",
+      "Evidence-based memory — only what actually happened is remembered.",
+      "No secrets in code; security is reviewed, never assumed."
+    ],
+    "gates": [
+      "discover",
+      "specify",
+      "design",
+      "prove",
+      "verify",
+      "reflect",
+      "verdict"
+    ],
+    "produces": "artifact"
+  },
+  "created": "2026-08-31T13:39:36.058Z",
+  "domains": [
+    {
+      "seq": 0,
+      "cardinal": "discovery",
+      "domain": "Discovery (調査)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "discover",
+          "agent": "market-researcher",
+          "goal": "楽園自身を実測せよ: 楽園に改善の数値的証明機構を築く: エージェント自身の性能を測るevalが無い。outcomeだけでなくtrajectoryを採点し、改善の前後を数値で示せるようにせよ。憶測を書くな。全ての門(tests/paradise.test.js, check-agents, census, apply-models verify, deploy check, upstream impact)を実際に走らせ、critic.js review graph --self をかけ、欠陥を**数**にして出す。「〜のはず」は証拠ではない",
+          "deps": [],
+          "gate": true,
+          "artifact": "findings.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/findings.md"
+        }
+      ],
+      "reviewClass": "pontiff",
+      "pdca": "plan: frame questions → do: research → check: are must-haves grounded? → act: refine or widen search"
+    },
+    {
+      "seq": 1,
+      "cardinal": "requirements",
+      "domain": "Requirements (要件)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "specify",
+          "agent": "requirements-analyst",
+          "goal": "実測された欠陥から、直すべきものを選び受入条件を書く。artifact でなく pipeline を直すこと(第9条)。「この門が、この入力で、こう鳴る」まで具体化する",
+          "deps": [
+            "discover"
+          ],
+          "gate": true,
+          "artifact": "requirements.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/requirements.md"
+        }
+      ],
+      "reviewClass": "cardinal:discovery",
+      "pdca": "plan: derive from findings → do: write spec → check: every must-have has an AC? → act: fill gaps"
+    },
+    {
+      "seq": 2,
+      "cardinal": "architecture",
+      "domain": "Architecture (設計)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "design",
+          "agent": "architect",
+          "goal": "機構を設計する: どの engine を、どう変えるか。憲法に条を足すべきか。既存の門との重複・矛盾はないか。**この変更で嘘になる既存の門**を洗い出す(依存関係を変えたら、古い前提を符号化した門を全て読み直す)",
+          "deps": [
+            "specify"
+          ],
+          "gate": true,
+          "artifact": "design.md",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/design.md"
+        }
+      ],
+      "reviewClass": "cardinal:requirements",
+      "pdca": "plan: shape the system → do: design + decompose → check: does design satisfy the spec? → act: revise"
+    },
+    {
+      "seq": 3,
+      "cardinal": "construction",
+      "domain": "Construction (建造)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "build",
+          "agent": "architect",
+          "goal": "engine を実装し、憲法条を追記し、CLAUDE.md/README の該当箇所を更新する",
+          "deps": [
+            "design"
+          ],
+          "gate": false,
+          "artifact": "implementation",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/graph/gauge.js"
+        },
+        {
+          "id": "prove",
+          "agent": "tdd-guide",
+          "goal": "**門を、わざと壊して鳴るか試す。** 実在しない名を仕込む/腐った数を仕込む/上流を隠すなど、欠陥を意図的に注入し、門がそれを名指しで捕らえることを回帰テストで固定する。健全な系で緑になるだけの門は証明されていない",
+          "deps": [
+            "build"
+          ],
+          "gate": true,
+          "artifact": "tests",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/tests/paradise.test.js"
+        }
+      ],
+      "reviewClass": "cardinal:quality",
+      "pdca": "plan: take the tasks → do: implement + test → check: do tests pass? → act: fix until green"
+    },
+    {
+      "seq": 4,
+      "cardinal": "quality",
+      "domain": "Quality (品質)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "review",
+          "agent": "code-reviewer",
+          "goal": "機構の質を審査する。教主の実装を、教主でない者が読む(第11条)。設計意図と実装の乖離、命名、既存 engine との一貫性",
+          "deps": [
+            "build",
+            "prove"
+          ],
+          "gate": false,
+          "artifact": "review.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/review.md"
+        },
+        {
+          "id": "security",
+          "agent": "security-reviewer",
+          "goal": "秘密の混入、任意コード実行、パス走査、CI 権限の過剰付与を検める。楽園の engine は開発者の環境で走る — 危害の射程は creations より広い",
+          "deps": [
+            "build"
+          ],
+          "gate": false,
+          "artifact": "security-report.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/security-report.md"
+        },
+        {
+          "id": "docs",
+          "agent": "doc-updater",
+          "goal": "CLAUDE.md の門一覧・憲法表、README の該当節を更新し、`node graph/census.js check` が通ることを確認する(第22条)",
+          "deps": [
+            "build"
+          ],
+          "gate": false,
+          "artifact": "docs",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise/CLAUDE.md"
+        },
+        {
+          "id": "verify",
+          "agent": "verification-loop",
+          "goal": "全門を通常環境と**素の環境**(PARADISE_UPSTREAM=/nonexistent CLAUDE_HOME=/nonexistent)の両方で走らせる。片方でも赤なら未完(第20条)",
+          "deps": [
+            "review",
+            "security",
+            "prove"
+          ],
+          "gate": true,
+          "artifact": "verification-report",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/verification-report.md"
+        }
+      ],
+      "reviewClass": "executor",
+      "pdca": "plan: define gates → do: review+scan+verify → check: all gates green? → act: send back or pass"
+    },
+    {
+      "seq": 5,
+      "cardinal": "tribunal",
+      "domain": "Tribunal (断罪機関)",
+      "status": "ratified",
+      "reworks": 0,
+      "phases": [
+        {
+          "id": "reflect",
+          "agent": "self-critic",
+          "goal": "敵対的自己批評: node graph/critic.js review graph --self --lessons graph/lessons.json。この改修が生んだ**新しい盲点**を探す。門を足したなら、その門自身は誰が見張るのか",
+          "deps": [
+            "verify",
+            "docs"
+          ],
+          "gate": true,
+          "artifact": "critique.md",
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/critique.md"
+        },
+        {
+          "id": "verdict",
+          "agent": "creation-judge",
+          "goal": "楽園の改革を裁く: SHIP / REWORK / BLOCK。裁いた上で PR を出す — マージは神のみ",
+          "deps": [
+            "reflect"
+          ],
+          "gate": true,
+          "artifact": "verdict",
+          "status": "done",
+          "attempts": 0,
+          "artifactPath": "C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/verdict-report.json"
+        }
+      ],
+      "reviewClass": "god",
+      "pdca": "reflect (adversarial self-critique) precedes verdict (SHIP/REWORK/BLOCK)"
+    }
+  ],
+  "history": [
+    {
+      "ts": "2026-08-31T13:39:36.058Z",
+      "event": "convene",
+      "detail": "6 domains, 11 phases"
+    },
+    {
+      "ts": "2026-08-31T13:39:36.099Z",
+      "event": "dispatch",
+      "detail": "discover"
+    },
+    {
+      "ts": "2026-08-31T13:42:31.483Z",
+      "event": "done",
+      "detail": "discover → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/findings.md"
+    },
+    {
+      "ts": "2026-08-31T13:42:31.523Z",
+      "event": "ratify",
+      "detail": "Discovery (調査) ratified by pontiff"
+    },
+    {
+      "ts": "2026-08-31T13:42:31.566Z",
+      "event": "dispatch",
+      "detail": "specify"
+    },
+    {
+      "ts": "2026-08-31T13:44:02.555Z",
+      "event": "done",
+      "detail": "specify → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/requirements.md"
+    },
+    {
+      "ts": "2026-08-31T13:44:02.598Z",
+      "event": "ratify",
+      "detail": "Requirements (要件) ratified by cardinal:discovery"
+    },
+    {
+      "ts": "2026-08-31T13:44:02.637Z",
+      "event": "done",
+      "detail": "design → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/design.md"
+    },
+    {
+      "ts": "2026-08-31T13:44:02.676Z",
+      "event": "ratify",
+      "detail": "Architecture (設計) ratified by cardinal:requirements"
+    },
+    {
+      "ts": "2026-08-31T13:44:02.714Z",
+      "event": "dispatch",
+      "detail": "build"
+    },
+    {
+      "ts": "2026-08-31T13:44:15.371Z",
+      "event": "ratify",
+      "detail": "Architecture (設計) ratified by cardinal:requirements"
+    },
+    {
+      "ts": "2026-08-31T13:54:37.441Z",
+      "event": "done",
+      "detail": "build → C:/Users/kikus/Documents/workspace/paradise/graph/gauge.js"
+    },
+    {
+      "ts": "2026-08-31T13:54:37.481Z",
+      "event": "dispatch",
+      "detail": "prove"
+    },
+    {
+      "ts": "2026-08-31T13:54:37.525Z",
+      "event": "done",
+      "detail": "prove → C:/Users/kikus/Documents/workspace/paradise/tests/paradise.test.js"
+    },
+    {
+      "ts": "2026-08-31T13:54:37.565Z",
+      "event": "ratify",
+      "detail": "Construction (建造) ratified by cardinal:quality"
+    },
+    {
+      "ts": "2026-08-31T13:54:37.608Z",
+      "event": "dispatch",
+      "detail": "review, security, docs"
+    },
+    {
+      "ts": "2026-08-31T14:00:11.921Z",
+      "event": "done",
+      "detail": "review → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/review.md"
+    },
+    {
+      "ts": "2026-08-31T14:00:11.962Z",
+      "event": "done",
+      "detail": "security → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/security-report.md"
+    },
+    {
+      "ts": "2026-08-31T14:00:12.003Z",
+      "event": "done",
+      "detail": "docs → C:/Users/kikus/Documents/workspace/paradise/CLAUDE.md"
+    },
+    {
+      "ts": "2026-08-31T14:00:12.042Z",
+      "event": "dispatch",
+      "detail": "verify"
+    },
+    {
+      "ts": "2026-08-31T14:00:39.485Z",
+      "event": "done",
+      "detail": "verify → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/verification-report.md"
+    },
+    {
+      "ts": "2026-08-31T14:00:39.527Z",
+      "event": "ratify",
+      "detail": "Quality (品質) ratified by executor"
+    },
+    {
+      "ts": "2026-08-31T14:00:39.569Z",
+      "event": "dispatch",
+      "detail": "reflect"
+    },
+    {
+      "ts": "2026-08-31T14:01:18.747Z",
+      "event": "done",
+      "detail": "reflect → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/critique.md"
+    },
+    {
+      "ts": "2026-08-31T14:01:25.357Z",
+      "event": "done",
+      "detail": "verdict → C:/Users/kikus/Documents/workspace/paradise-creations/reform-eval-gauge/verdict-report.json"
+    },
+    {
+      "ts": "2026-08-31T14:01:25.398Z",
+      "event": "ratify",
+      "detail": "Tribunal (断罪機関) ratified by god"
+    }
+  ]
+}

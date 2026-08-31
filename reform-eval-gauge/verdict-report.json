@@ -1,0 +1,36 @@
+{
+  "produces": "engine",
+  "build": "pass",
+  "types": {
+    "status": "pass"
+  },
+  "lint": {
+    "status": "pass"
+  },
+  "tests": {
+    "passed": 210,
+    "failed": 0,
+    "total": 210,
+    "coverage": 100
+  },
+  "security": {
+    "issues": 0,
+    "secrets": 0
+  },
+  "spec": {
+    "satisfied": true
+  },
+  "trajectory": {
+    "score": 80,
+    "complete": false,
+    "phasesTotal": 11,
+    "phasesDone": 10,
+    "domainsTotal": 6,
+    "domainsRatified": 5,
+    "firstPassRate": 1,
+    "reworkCount": 0,
+    "retryOverhead": 0,
+    "loopGuardTrips": 0,
+    "durationMs": 1302689
+  }
+}

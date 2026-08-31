@@ -1,0 +1,134 @@
+{
+  "meta": {
+    "wish": "楽園に改善の数値的証明機構を築く: エージェント自身の性能を測るevalが無い。outcomeだけでなくtrajectoryを採点し、改善の前後を数値で示せるようにせよ",
+    "scale": "reform",
+    "created": "2026-08-31T13:39:35.995Z",
+    "constitution": [
+      "Spec is the source of truth — code serves the spec, not the reverse.",
+      "Every phase is gated — no phase advances on unverified assumptions.",
+      "Independent work runs in parallel; dependent work runs in order.",
+      "Verification precedes judgment; judgment precedes shipping.",
+      "Evidence-based memory — only what actually happened is remembered.",
+      "No secrets in code; security is reviewed, never assumed."
+    ],
+    "gates": [
+      "discover",
+      "specify",
+      "design",
+      "prove",
+      "verify",
+      "reflect",
+      "verdict"
+    ],
+    "produces": "artifact"
+  },
+  "tasks": [
+    {
+      "id": "discover",
+      "agent": "market-researcher",
+      "goal": "楽園自身を実測せよ: 楽園に改善の数値的証明機構を築く: エージェント自身の性能を測るevalが無い。outcomeだけでなくtrajectoryを採点し、改善の前後を数値で示せるようにせよ。憶測を書くな。全ての門(tests/paradise.test.js, check-agents, census, apply-models verify, deploy check, upstream impact)を実際に走らせ、critic.js review graph --self をかけ、欠陥を**数**にして出す。「〜のはず」は証拠ではない",
+      "gate": true,
+      "artifact": "findings.md"
+    },
+    {
+      "id": "specify",
+      "agent": "requirements-analyst",
+      "goal": "実測された欠陥から、直すべきものを選び受入条件を書く。artifact でなく pipeline を直すこと(第9条)。「この門が、この入力で、こう鳴る」まで具体化する",
+      "deps": [
+        "discover"
+      ],
+      "gate": true,
+      "artifact": "requirements.md"
+    },
+    {
+      "id": "design",
+      "agent": "architect",
+      "goal": "機構を設計する: どの engine を、どう変えるか。憲法に条を足すべきか。既存の門との重複・矛盾はないか。**この変更で嘘になる既存の門**を洗い出す(依存関係を変えたら、古い前提を符号化した門を全て読み直す)",
+      "deps": [
+        "specify"
+      ],
+      "gate": true,
+      "artifact": "design.md"
+    },
+    {
+      "id": "build",
+      "agent": "architect",
+      "goal": "engine を実装し、憲法条を追記し、CLAUDE.md/README の該当箇所を更新する",
+      "deps": [
+        "design"
+      ],
+      "artifact": "implementation"
+    },
+    {
+      "id": "prove",
+      "agent": "tdd-guide",
+      "goal": "**門を、わざと壊して鳴るか試す。** 実在しない名を仕込む/腐った数を仕込む/上流を隠すなど、欠陥を意図的に注入し、門がそれを名指しで捕らえることを回帰テストで固定する。健全な系で緑になるだけの門は証明されていない",
+      "deps": [
+        "build"
+      ],
+      "gate": true,
+      "artifact": "tests"
+    },
+    {
+      "id": "review",
+      "agent": "code-reviewer",
+      "goal": "機構の質を審査する。教主の実装を、教主でない者が読む(第11条)。設計意図と実装の乖離、命名、既存 engine との一貫性",
+      "deps": [
+        "build",
+        "prove"
+      ],
+      "artifact": "review.md"
+    },
+    {
+      "id": "security",
+      "agent": "security-reviewer",
+      "goal": "秘密の混入、任意コード実行、パス走査、CI 権限の過剰付与を検める。楽園の engine は開発者の環境で走る — 危害の射程は creations より広い",
+      "deps": [
+        "build"
+      ],
+      "artifact": "security-report.md"
+    },
+    {
+      "id": "docs",
+      "agent": "doc-updater",
+      "goal": "CLAUDE.md の門一覧・憲法表、README の該当節を更新し、`node graph/census.js check` が通ることを確認する(第22条)",
+      "deps": [
+        "build"
+      ],
+      "artifact": "docs"
+    },
+    {
+      "id": "verify",
+      "agent": "verification-loop",
+      "goal": "全門を通常環境と**素の環境**(PARADISE_UPSTREAM=/nonexistent CLAUDE_HOME=/nonexistent)の両方で走らせる。片方でも赤なら未完(第20条)",
+      "deps": [
+        "review",
+        "security",
+        "prove"
+      ],
+      "gate": true,
+      "artifact": "verification-report"
+    },
+    {
+      "id": "reflect",
+      "agent": "self-critic",
+      "goal": "敵対的自己批評: node graph/critic.js review graph --self --lessons graph/lessons.json。この改修が生んだ**新しい盲点**を探す。門を足したなら、その門自身は誰が見張るのか",
+      "deps": [
+        "verify",
+        "docs"
+      ],
+      "gate": true,
+      "artifact": "critique.md"
+    },
+    {
+      "id": "verdict",
+      "agent": "creation-judge",
+      "goal": "楽園の改革を裁く: SHIP / REWORK / BLOCK。裁いた上で PR を出す — マージは神のみ",
+      "deps": [
+        "reflect"
+      ],
+      "gate": true,
+      "artifact": "verdict"
+    }
+  ]
+}
