@@ -15,7 +15,7 @@
   "security": {
     "issues": 0,
     "secrets": 0,
-    "note": "security.md による実機審査。致命的・高重大度ゼロ。中1件(CSVインジェクション F-1)は修復済み、低1件(F-2)は次回。ネットワーク送信ゼロを grep と実機で証明"
+    "note": "security.md による実機審査。致命的・高重大度ゼロ。中1件(CSVインジェクション F-1)と低1件(Markdown表構造 F-2)はいずれも修復済み — 教主が csvCell/mdCell の実装を実測確認"
   },
   "spec": {
     "satisfied": true,
@@ -37,7 +37,7 @@
   },
   "visual": {
     "status": "pass",
-    "note": "visual-verify.js check — VISUAL: all visual checks pass。コントラスト/タッチターゲット/フォーカス/レスポンシブ/状態網羅すべて緑"
+    "note": "visual-verify.js check — VISUAL: all visual checks pass。ux-review.md の軽微な指摘5件(D-1〜D-5)も全て修復済みであることを教主が実測確認: disabled ボタン文字色は --muted(3.09:1)から --muted-soft(5.49:1)へ、aria-describedby は空文字ではなく属性ごと除去、#verdict-lede は --font-display(明朝)を指定"
   },
   "evidence": {
     "artifact": "C:/Users/kikus/Documents/workspace/paradise-creations/tenbin/index.html",
