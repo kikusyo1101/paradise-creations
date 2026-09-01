@@ -1,0 +1,3213 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>天秤 — 決断支援</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   2-1. :root — identity.md §7 の CSS カスタムプロパティ定義(一字一句)
+   ═══════════════════════════════════════════════════════════════════ */
+:root {
+  /* ── 面 ─────────────────────────────────────────── */
+  --canvas:          #181818;  /* identity.js: body-on-light / description の base canvas */
+  --surface:         #242424;  /* 導出: canvas #181818 × palette hairline #303030 の 50% 混色 */
+  --band-winner:     #3b1b19;  /* 導出: canvas × primary 18% */
+
+  /* ── 文字 ───────────────────────────────────────── */
+  --ink:             #ffffff;  /* 17.76:1 on canvas */
+  --body:            #969696;  /*  6.00:1 on canvas /  5.25:1 on surface */
+  --muted-soft:      #8f8f8f;  /*  5.49:1 on canvas /  4.80:1 on surface */
+  --muted:           #666666;  /*  3.09:1 on canvas — 非活性のみ。surface 上は使用禁止 */
+
+  /* ── 線 ─────────────────────────────────────────── */
+  --hairline:        #666666;  /*  3.09:1 on canvas — WCAG 1.4.11 を満たす境界罫。
+                                  identity.js palette の muted 原値そのもの(新色を発明しない)。
+                                  §2-3「surface と canvas の差は 1.14:1 で境界は線で描く」を守るため、
+                                  罫は装飾ではなく面の境界を伝える意味を負う。テキスト色には引き続き禁止。 */
+  --bar-track:       #303030;  /*  旧 hairline 値。identity.js palette の hairline 原値。
+                                  バーの「溝」は境界線ではなく面(1.4.11 の対象外)。
+                                  意味は塗り(--bar-fill 4.46:1 / --bar-fill-crit 4.47:1 が溝に対して)が担う。 */
+
+  /* ── 単一ブランド電圧(Rosso Corsa)───────────────── */
+  --primary:         #da291c;  /*  3.65:1 on canvas — 非テキストUI・大文字のみ */
+  --primary-hover:   #9d2211;  /*  塗り専用。文字色禁止(2.26:1) */
+  --primary-active:  #b01e0a;  /*  塗り専用。文字色禁止(2.57:1) */
+  --on-primary:      #ffffff;  /*  4.87:1 on primary */
+
+  /* ── 頑健性ラベル ──────────────────────────────── */
+  --robust-ink:      #ffffff;  /* 17.76:1 — 実線罫 + 語 "robust" */
+  --contingent-ink:  #969696;  /*  6.00:1 — 破線罫 + 語 "contingent" */
+  --fragile-ink:     #e7746b;  /*  6.01:1 — 点線罫 + 語 "fragile"
+                                  導出: primary × ink 35%(primary は本文 AA 未達のため) */
+
+  /* ── 意味役割 ──────────────────────────────────── */
+  --cost-mark:       var(--muted-soft);  /* コスト基準「↓ 低いほど良い」 5.49:1 */
+  --warn-ink:        #ffffff;            /* 逆算検知の本文 17.76:1 */
+  --warn-rule:       var(--primary);     /* 逆算検知の左 4px 罫 3.65:1 */
+  --fulcrum:         var(--primary);     /* 逆転閾値の支点 2px 3.65:1 */
+  --bar-fill:        var(--body);        /* 通常の重みバー(無彩色)6.00:1 */
+  --bar-fill-crit:   var(--fragile-ink); /* 最臨界基準 k* のみ 6.01:1 */
+  --focus-ring:      #ffffff;            /* 17.76:1 */
+
+  /* ── 書体(外部フォント読み込みなし)────────────── */
+  --font-display: "Hiragino Mincho ProN", "Yu Mincho", YuMincho, "MS PMincho",
+                  Georgia, "Times New Roman", "Noto Serif JP", serif;
+  --font-body:    "Hiragino Kaku Gothic ProN", "Yu Gothic UI", "Yu Gothic",
+                  "Meiryo", -apple-system, "Segoe UI", system-ui,
+                  "Helvetica Neue", Arial, sans-serif;
+  --font-numeric: ui-monospace, "SF Mono", Menlo, Consolas,
+                  "Cascadia Mono", "DejaVu Sans Mono", monospace;
+
+  /* ── 文字サイズ ────────────────────────────────── */
+  --fs-label:    28px;  /* 頑健性ラベル */
+  --fs-lede:     20px;  /* 一次出力文 */
+  --fs-score:    34px;  /* 総合スコア */
+  --fs-head:     17px;  /* セクション見出し */
+  --fs-body:     15px;  /* 本文 */
+  --fs-num:      14px;  /* 表内数値 */
+  --fs-note:     13px;  /* 但し書き */
+
+  --lh-tight:    1.2;
+  --lh-lede:     1.7;
+  --lh-body:     1.75;
+
+  /* ── 余白(4px グリッド)──────────────────────── */
+  --sp-1:   4px;
+  --sp-2:   8px;
+  --sp-3:  12px;
+  --sp-4:  16px;
+  --sp-6:  24px;
+  --sp-8:  32px;
+  --sp-12: 48px;
+  --sp-16: 64px;
+  --sp-24: 96px;
+
+  /* ── 形 ─────────────────────────────────────────── */
+  --radius:        0px;   /* パネル・帯・バー */
+  --radius-ctl:    2px;   /* ボタン・入力欄のみ */
+  --rule:          1px;   /* 罫 */
+  --rule-strong:   2px;   /* 区切り太罫・支点 */
+  --rule-accent:   3px;   /* 勝者左罫 */
+  --rule-warn:     4px;   /* 警告左罫 */
+  --shadow:        none;  /* 陰影は存在しない */
+
+  /* ── 版面 ───────────────────────────────────────── */
+  --measure-max:  1120px; /* 版面最大幅 */
+  --measure-text:   62ch; /* 一次出力文の行長 */
+
+  /* ── 動き(最小限)────────────────────────────── */
+  --motion: 120ms linear;
+}
+
+/* 2-2. 動きの抑制 */
+@media (prefers-reduced-motion: reduce) {
+  :root { --motion: 0ms; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   2-3. リセット + 版面
+   ═══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { background: var(--canvas); }
+
+body {
+  margin: 0;
+  padding: 0 var(--sp-6) var(--sp-24);
+  background: var(--canvas);
+  color: var(--body);
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  -webkit-text-size-adjust: 100%;
+}
+
+header, main, footer { max-width: var(--measure-max); margin: 0 auto; }
+
+h1, h2, h3 { font-family: var(--font-display); color: var(--ink); font-weight: 400; }
+h1 { font-size: var(--fs-head); letter-spacing: .18em; margin: 0; }
+h2 { font-size: var(--fs-head); line-height: var(--lh-tight); margin: 0 0 var(--sp-4); }
+h3 { font-size: var(--fs-body); line-height: var(--lh-tight); margin: 0 0 var(--sp-2); }
+p  { margin: 0 0 var(--sp-3); }
+ol, ul { margin: 0; padding: 0; list-style: none; }
+
+section { padding: var(--sp-8) 0; border-top: var(--rule) solid var(--hairline); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   2-4. タイポ基底 — 数値は等幅 + tabular-nums(identity §3-3)
+   ═══════════════════════════════════════════════════════════════════ */
+.num, td.score, .delta, .weight, .pct,
+input[type="number"], input[type="range"] + .weight-num {
+  font-family: var(--font-numeric);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   2-8. :focus-visible — フォーカスリングは決して消さない(AC-26)
+   ═══════════════════════════════════════════════════════════════════ */
+:focus-visible {
+  outline: var(--rule-strong) solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ── コントロール共通 ───────────────────────────── */
+button, .btn {
+  font-family: var(--font-body);
+  font-size: var(--fs-note);
+  line-height: 1.4;
+  color: var(--ink);
+  background: var(--surface);
+  border: var(--rule) solid var(--hairline);
+  border-radius: var(--radius-ctl);
+  padding: var(--sp-1) var(--sp-3);
+  cursor: pointer;
+  transition: background-color var(--motion), border-color var(--motion);
+}
+button:hover { background: var(--hairline); }
+button:active { background: var(--primary-active); }
+/* D-3: 非活性でも「逆転不能」は読ませねばならない状態表示である。
+   --muted(canvas 上 3.09:1、AA 未達)ではなく --muted-soft(5.49:1)を使う。
+   無効であることは disabled 属性・カーソル・枠線が既に伝えている。 */
+button[disabled] { color: var(--muted-soft); cursor: default; background: var(--canvas); }
+button.primary { background: var(--primary-hover); color: var(--on-primary); border-color: var(--primary); }
+button.primary:hover { background: var(--primary-active); }
+
+input[type="text"], input[type="number"], select {
+  font-family: var(--font-body);
+  font-size: var(--fs-body);
+  color: var(--ink);
+  background: var(--canvas);
+  border: var(--rule) solid var(--hairline);
+  border-radius: var(--radius-ctl);
+  padding: var(--sp-1) var(--sp-2);
+  transition: border-color var(--motion), background-color var(--motion);
+}
+input[type="number"] { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; }
+input[type="text"]:hover, input[type="number"]:hover, select:hover { border-color: var(--body); }
+
+/* ═══════════════════════════════════════════════════════════════════
+   2-6. sr-only ユーティリティ(#verdict-live 用)
+   ═══════════════════════════════════════════════════════════════════ */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skip {
+  position: absolute; left: -9999px; top: 0;
+  background: var(--surface); color: var(--ink);
+  padding: var(--sp-2) var(--sp-4); z-index: 10;
+}
+.skip:focus { left: var(--sp-4); top: var(--sp-2); }
+
+.note { font-size: var(--fs-note); color: var(--muted-soft); line-height: var(--lh-body); }
+.hint { font-size: var(--fs-note); color: var(--muted-soft); }
+[hidden] { display: none !important; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   2-5. ゾーン別スタイル Z0〜Z6(identity §5 の視覚語彙)
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Z0 ヘッダ ─────────────────────────────────── */
+#z0 {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3);
+  padding: var(--sp-6) 0 var(--sp-4);
+  border-bottom: var(--rule-strong) solid var(--hairline);
+}
+#z0 .brand { display: flex; align-items: baseline; gap: var(--sp-3); }
+#z0 .brand .sub { font-size: var(--fs-note); color: var(--muted-soft); }
+#z0 .tools { margin-left: auto; display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+#save-status { margin: 0; font-size: var(--fs-note); color: var(--muted-soft); min-width: 8ch; }
+
+.pop {
+  position: relative;
+}
+.pop-body {
+  position: absolute; right: 0; top: calc(100% + var(--sp-2)); z-index: 9;
+  width: 340px; max-width: 84vw;
+  background: var(--surface);
+  border: var(--rule) solid var(--hairline);
+  padding: var(--sp-4);
+}
+.pop-body .row { display: flex; align-items: center; gap: var(--sp-2); margin-bottom: var(--sp-3); }
+.pop-body .note { margin-top: var(--sp-3); }
+.menu { display: flex; flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+
+/* ── Z1 結論帯 ★一次出力 ───────────────────────── */
+#z1 { border-top: 0; }
+#verdict {
+  border-left: var(--rule-warn) solid var(--hairline);
+  padding: var(--sp-4) 0 var(--sp-4) var(--sp-6);
+  background: var(--surface);
+}
+#verdict.is-robust     { border-left-style: solid;  border-left-color: var(--robust-ink); }
+#verdict.is-contingent { border-left-style: dashed; border-left-color: var(--contingent-ink); }
+#verdict.is-fragile    { border-left-style: dotted; border-left-color: var(--fragile-ink);
+                         border-bottom: var(--rule) solid var(--primary); }
+
+#verdict-label {
+  font-family: var(--font-display);
+  font-size: var(--fs-label);
+  line-height: var(--lh-tight);
+  color: var(--ink);
+  margin: 0 0 var(--sp-4);
+  max-width: var(--measure-text);
+}
+#verdict.is-robust     #verdict-label { color: var(--robust-ink); }
+#verdict.is-contingent #verdict-label { color: var(--contingent-ink); }
+#verdict.is-fragile    #verdict-label { color: var(--fragile-ink); }
+
+#verdict-lede {
+  font-family: var(--font-display);
+  font-size: var(--fs-lede);
+  line-height: var(--lh-lede);
+  color: var(--ink);
+  max-width: var(--measure-text);
+}
+#verdict-caveat {
+  max-width: var(--measure-text);
+  color: var(--muted-soft);
+  font-size: var(--fs-note);
+  border-top: var(--rule) solid var(--hairline);
+  padding-top: var(--sp-3);
+}
+.jump {
+  background: none; border: 0; border-bottom: var(--rule) dotted var(--muted-soft);
+  color: inherit; font: inherit; padding: 0; cursor: pointer;
+}
+
+/* ④ Δ* 数直線(0〜40pt 固定軸) */
+#deltaline { margin-top: var(--sp-6); max-width: 620px; }
+.axis {
+  position: relative; height: 3px; background: var(--hairline);
+  margin: var(--sp-6) 0 var(--sp-4);
+}
+.axis .tick-theta {
+  position: absolute; top: -9px; bottom: -9px; width: var(--rule-strong);
+  background: var(--muted-soft); left: calc(var(--theta-pos, 25) * 1%);
+  transform: translateX(-1px);
+}
+/* D-4: WCAG 2.5.8 は触れる/指し示す的に 24×24 CSS px を求める。
+   見た目の点は 11px のまま(ux §2-1 ④ の版面を変えない)、当たり判定だけを
+   24px の透明な箱に広げ、可視の丸は ::after を inset で内側に描く。 */
+.axis .dot-delta {
+  position: absolute; top: -10.5px; width: 24px; height: 24px;
+  background: none; left: calc(var(--delta-pos, 0) * 1%);
+  transform: translateX(-12px);
+}
+.axis .dot-delta::after {
+  content: ""; position: absolute; inset: 6.5px;
+  border-radius: 50%; background: var(--primary);
+}
+.axis.is-robust { background: var(--robust-ink); }
+.axis-labels { display: flex; justify-content: space-between; font-size: var(--fs-note); color: var(--muted-soft); }
+.axis-marks { position: relative; height: 1.4em; font-size: var(--fs-note); }
+.axis-marks span { position: absolute; white-space: nowrap; transform: translateX(-50%); }
+.axis-marks .m-delta { color: var(--fragile-ink); left: calc(var(--delta-pos, 0) * 1%); }
+.axis-marks .m-theta { color: var(--muted-soft); left: calc(var(--theta-pos, 25) * 1%); }
+
+/* ── Z2 順位ストリップ ─────────────────────────── */
+#z2 .d0 { font-size: var(--fs-note); color: var(--muted-soft); margin-bottom: var(--sp-4); }
+#ranking { display: flex; flex-wrap: wrap; gap: var(--sp-4); }
+.rank-row {
+  flex: 1 1 200px; min-width: 180px;
+  background: var(--surface);
+  border-left: var(--rule) solid var(--hairline);
+  padding: var(--sp-4) var(--sp-6);
+}
+.rank-row.is-winner {
+  background: var(--band-winner);
+  border-left: var(--rule-accent) solid var(--primary);
+  padding-left: 21px;
+}
+.rank-row .place { font-size: var(--fs-note); color: var(--muted-soft); letter-spacing: .1em; }
+.rank-row .name { display: block; color: var(--body); margin: var(--sp-1) 0; }
+.rank-row.is-winner .name { font-family: var(--font-display); color: var(--ink); }
+.rank-row .score {
+  display: block; font-family: var(--font-numeric); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-score); line-height: var(--lh-tight); color: var(--ink);
+}
+#excluded { margin-top: var(--sp-4); }
+#excluded li { font-size: var(--fs-note); color: var(--muted-soft); padding: var(--sp-1) 0 var(--sp-1) var(--sp-3);
+               border-left: var(--rule-strong) solid var(--hairline); }
+
+/* ── Z3 | Z4 の2カラム ─────────────────────────── */
+.cols { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr); gap: var(--sp-8); }
+.cols > section { border-top: var(--rule) solid var(--hairline); }
+
+/* ── Z3 基準・臨界度 ★主操作 ───────────────────── */
+.crit-row {
+  padding: var(--sp-4) 0 var(--sp-6);
+  border-bottom: var(--rule) dotted var(--hairline);
+}
+.crit-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+.crit-head .idx { font-family: var(--font-numeric); color: var(--muted-soft); font-size: var(--fs-note); }
+.crit-head .cname { flex: 1 1 12ch; min-width: 10ch; }
+.crit-row.is-dominant .idx::before { content: "— "; color: var(--muted-soft); }
+.dir-toggle { white-space: nowrap; color: var(--cost-mark); }
+
+.crit-line {
+  font-family: var(--font-numeric); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-num); color: var(--body);
+  margin: var(--sp-3) 0 var(--sp-2);
+}
+.crit-row.is-critical .crit-line { color: var(--fragile-ink); }
+.crit-reason { font-size: var(--fs-note); color: var(--muted-soft); margin: var(--sp-2) 0 0; }
+
+/* 5-1/5-2/5-3 支点のある横棒 — レール */
+.rail-wrap { position: relative; padding: var(--sp-4) 0 var(--sp-2); }
+.weight-bar {
+  height: 6px;
+  background: var(--bar-track);
+  border-radius: 0;
+  position: relative;
+}
+.weight-bar > .fill {
+  height: 100%;
+  background: var(--bar-fill);
+  width: calc(var(--w) * 1%);
+}
+.weight-bar.is-critical > .fill { background: var(--bar-fill-crit); }
+.weight-bar > .fulcrum {
+  position: absolute;
+  top: -5px; bottom: -5px;
+  width: 2px;
+  background: var(--fulcrum);
+  left: calc(var(--threshold) * 1%);
+  transform: translateX(-1px);
+}
+.weight-bar > .fulcrum::after {
+  content: "";
+  position: absolute;
+  top: -6px; left: -4px;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-bottom: 6px solid var(--fulcrum);
+}
+/* 5-4 逆転不能 = 可動域が無い */
+.weight-bar.is-dominant > .fulcrum { display: none; }
+.weight-bar.is-dominant {
+  background: repeating-linear-gradient(
+    135deg,
+    var(--hairline) 0 3px,
+    var(--canvas)   3px 6px
+  );
+}
+.weight-bar.is-dominant > .fill { display: none; }
+
+/* range をレールに重ねる。トラックは透明にして下の .weight-bar を見せる */
+.rail {
+  -webkit-appearance: none;
+  appearance: none;
+  position: absolute;
+  left: 0; right: 0; top: var(--sp-3);
+  width: 100%; height: 22px;
+  margin: 0; padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.rail::-webkit-slider-runnable-track { height: 22px; background: transparent; border: 0; }
+.rail::-moz-range-track { height: 22px; background: transparent; border: 0; }
+.rail::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 10px; height: 22px;
+  background: var(--ink);
+  border: var(--rule) solid var(--canvas);
+  border-radius: var(--radius-ctl);
+}
+.rail::-moz-range-thumb {
+  width: 10px; height: 22px;
+  background: var(--ink);
+  border: var(--rule) solid var(--canvas);
+  border-radius: var(--radius-ctl);
+}
+.rail-scale { display: flex; justify-content: space-between; font-size: var(--fs-note); color: var(--muted-soft); }
+.zones { display: flex; font-size: var(--fs-note); color: var(--muted-soft); margin-top: var(--sp-2); gap: var(--sp-2); }
+.zones .zone-a { width: calc(var(--threshold) * 1%); }
+.zones .zone-b { flex: 1 1 auto; text-align: right; }
+
+.crit-controls { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-top: var(--sp-3); }
+.weight-num { width: 8ch; }
+
+.critbar { display: flex; align-items: center; gap: var(--sp-2); margin-top: var(--sp-3); font-size: var(--fs-note); }
+.critbar .track { flex: 0 0 160px; height: 6px; background: var(--bar-track); }
+.critbar .track > i { display: block; height: 100%; width: calc(var(--c) * 1%); background: var(--bar-fill); }
+.crit-row.is-critical .critbar .track > i { background: var(--bar-fill-crit); }
+.critbar .val { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; color: var(--body); }
+.critbar .most { color: var(--fragile-ink); }
+
+.crit-more { margin-top: var(--sp-3); padding: var(--sp-3); background: var(--surface); border: var(--rule) solid var(--hairline); }
+.crit-more .row { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+
+.sum-note { margin-top: var(--sp-4); font-size: var(--fs-note); color: var(--muted-soft); }
+
+/* ── Z4 貢献度 ─────────────────────────────────── */
+.contrib-head { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; margin-bottom: var(--sp-2); }
+#gbars { margin: var(--sp-4) 0; }
+.gbar { margin-bottom: var(--sp-3); }
+.gbar .lbl { display: flex; justify-content: space-between; font-size: var(--fs-note); gap: var(--sp-3); }
+.gbar .lbl .v { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; color: var(--ink); }
+/* D-1: <span>/<i> は inline のままだと height も絶対配置も効かず、実測 0×0px になる。
+   軸とバー本体には必ず block を与える(これが無いと貢献度バーが1本も描画されない)。 */
+.gbar .axis0 { display: block; position: relative; height: 12px; background: var(--surface); margin-top: var(--sp-1); }
+.gbar .axis0::before {
+  content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--rule); background: var(--muted-soft);
+}
+.gbar .seg {
+  display: block;
+  position: absolute; top: 0; bottom: 0;
+  left: calc(var(--gl) * 1%); width: calc(var(--gw) * 1%);
+  background: var(--bar-fill);
+}
+.gbar.is-neg .seg {
+  background: repeating-linear-gradient(135deg, var(--body) 0 3px, var(--surface) 3px 6px);
+}
+.gbar.crosses .seg { background: var(--bar-fill-crit); }
+.hundred-line { position: relative; height: 1.4em; font-size: var(--fs-note); color: var(--muted-soft); }
+.hundred-line span { position: absolute; left: calc(var(--h100) * 1%); transform: translateX(-50%); white-space: nowrap; }
+.gaxis { position: relative; height: 12px; }
+.gaxis .m { position: absolute; top: 0; bottom: 0; width: var(--rule); background: var(--hairline); left: calc(var(--p) * 1%); }
+.gaxis .m.h100 { background: var(--muted-soft); }
+
+.stack { margin-bottom: var(--sp-4); }
+.stack .who { font-size: var(--fs-note); color: var(--body); margin-bottom: var(--sp-1); }
+.stack .bar { display: flex; height: 20px; background: var(--surface); border: var(--rule) solid var(--hairline); }
+.stack .bar > i {
+  display: block; flex: 0 0 auto; width: calc(var(--p) * 1%); height: 100%;
+  border-right: var(--rule) solid var(--canvas);
+  background: var(--bar-fill);
+}
+.stack .bar > i:nth-child(even) { background: var(--muted-soft); }
+.stack .parts { font-size: var(--fs-note); color: var(--muted-soft); font-family: var(--font-numeric); font-variant-numeric: tabular-nums; }
+
+/* ── Z5 重み履歴 ───────────────────────────────── */
+#weight-history li {
+  font-family: var(--font-numeric); font-variant-numeric: tabular-nums;
+  font-size: var(--fs-num); color: var(--body); padding: var(--sp-1) 0;
+}
+/* 5-9 警告 — 逆算検知 */
+#anchor-warn {
+  border-left: var(--rule-warn) solid var(--warn-rule);
+  padding: var(--sp-3) var(--sp-4);
+  background: var(--surface);
+  color: var(--warn-ink);
+  white-space: pre-line;
+}
+.softwarn { font-size: var(--fs-note); color: var(--muted-soft); margin-top: var(--sp-2); }
+
+/* ── Z6 採点グリッド ───────────────────────────── */
+.grid-wrap { overflow-x: auto; }
+#grid { border-collapse: collapse; width: 100%; }
+#grid th, #grid td {
+  border: var(--rule) solid var(--hairline);
+  padding: var(--sp-2);
+  text-align: left;
+  vertical-align: top;
+}
+#grid thead th { color: var(--ink); font-weight: 400; font-family: var(--font-display); font-size: var(--fs-num); }
+#grid thead th .dir { display: block; font-family: var(--font-body); font-size: var(--fs-note); color: var(--cost-mark); }
+#grid tbody th { color: var(--body); font-weight: 400; }
+#grid tbody th input { width: 14ch; }
+#grid td input[type="number"] { width: 6.5ch; }
+#grid td .ghost {
+  display: block; font-size: var(--fs-note); color: var(--muted-soft);
+  font-family: var(--font-numeric); font-variant-numeric: tabular-nums;
+}
+#grid tr.is-winner th { color: var(--ink); font-family: var(--font-display); }
+.grid-actions { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-4); flex-wrap: wrap; }
+
+/* 5-10 プライバシー表示 — 版面フッタ、アイコンなし */
+#privacy {
+  margin-top: var(--sp-12);
+  padding-top: var(--sp-4);
+  border-top: var(--rule) solid var(--hairline);
+  font-family: var(--font-numeric);
+  font-size: var(--fs-note);
+  color: var(--muted-soft);
+  white-space: pre-line;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   2-7. 狭幅 — 単一カラム
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 720px) {
+  body { padding: 0 var(--sp-4) var(--sp-16); }
+  .cols { grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); }
+  #verdict-label { font-size: var(--fs-lede); }
+  .rank-row .score { font-size: var(--fs-lede); }
+  #z0 .tools { margin-left: 0; width: 100%; }
+  .critbar .track { flex: 0 0 96px; }
+  #grid thead { position: absolute; left: -9999px; }
+  #grid, #grid tbody, #grid tr, #grid th, #grid td { display: block; width: auto; }
+  #grid tr { margin-bottom: var(--sp-4); border: var(--rule) solid var(--hairline); }
+  #grid td { display: flex; justify-content: space-between; gap: var(--sp-3); border: 0; border-top: var(--rule) dotted var(--hairline); }
+  #grid td::before { content: attr(data-label); color: var(--muted-soft); font-size: var(--fs-note); }
+}
+</style>
+</head>
+<body>
+<a class="skip" href="#z1">結論へ移動</a>
+
+<!-- ══ Z0 ヘッダ ═══════════════════════════════════════════════════ -->
+<header id="z0">
+  <div class="brand">
+    <h1>天秤</h1>
+    <span class="sub">決断支援</span>
+  </div>
+  <div class="tools">
+    <p id="save-status" role="status"></p>
+
+    <div class="pop">
+      <button type="button" id="btn-theta" aria-expanded="false" aria-controls="pop-theta">
+        しきい値 θ <span class="num" id="theta-badge">10.0</span>pt
+      </button>
+      <div class="pop-body" id="pop-theta" hidden>
+        <h3>しきい値 θ</h3>
+        <div class="row">
+          <label for="theta-num">ポイント</label>
+          <input type="number" id="theta-num" min="0" max="100" step="0.5" value="10">
+          <button type="button" id="theta-minus">− 1pt</button>
+          <button type="button" id="theta-plus">+ 1pt</button>
+        </div>
+        <div class="row">
+          <span class="hint">0</span>
+          <input type="range" id="theta-range" min="0" max="40" step="0.5" value="10"
+                 aria-label="しきい値 θ(ポイント)">
+          <span class="hint">40pt</span>
+        </div>
+        <p class="note">しきい値 10 ポイントは経験則であり、理論的な裏付けはありません。ご自身の判断で変更できます。Δ* と k* は θ に依らず不変です。</p>
+      </div>
+    </div>
+
+    <div class="pop">
+      <button type="button" id="btn-export" aria-expanded="false" aria-controls="pop-export">出力</button>
+      <div class="pop-body menu" id="pop-export" hidden>
+        <button type="button" id="ex-csv">CSV を書き出す</button>
+        <button type="button" id="ex-md">Markdown を書き出す</button>
+        <button type="button" id="ex-json">JSON を書き出す</button>
+        <p class="note">書き出しはこのブラウザの中だけで生成されます。</p>
+      </div>
+    </div>
+
+    <button type="button" id="btn-clear">全消去</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ══ Z1 結論帯 ★一次出力 ═════════════════════════════════════ -->
+  <section id="z1" aria-labelledby="z1-h">
+    <h2 id="z1-h">結論</h2>
+
+    <div id="verdict" aria-hidden="true">
+      <p id="verdict-label"></p>
+      <p id="verdict-lede"></p>
+      <p id="verdict-caveat" hidden></p>
+
+      <div id="deltaline" hidden>
+        <div class="axis" id="delta-axis">
+          <span class="tick-theta"></span>
+          <span class="dot-delta" id="delta-dot"></span>
+        </div>
+        <div class="axis-marks" id="axis-marks">
+          <span class="m-delta" id="mark-delta"></span>
+          <span class="m-theta" id="mark-theta"></span>
+        </div>
+        <div class="axis-labels"><span>0</span><span>40pt</span></div>
+        <button type="button" id="btn-theta2">しきい値を変える</button>
+      </div>
+    </div>
+
+    <p id="verdict-live" class="sr-only" aria-live="polite" aria-atomic="true"></p>
+  </section>
+
+  <!-- ══ Z2 順位ストリップ ═══════════════════════════════════════ -->
+  <section id="z2" aria-labelledby="z2-h" hidden>
+    <h2 id="z2-h">順位</h2>
+    <p class="d0" id="d0-line"></p>
+    <ol id="ranking"></ol>
+    <ul id="excluded"></ul>
+  </section>
+
+  <div class="cols">
+    <!-- ══ Z3 基準・臨界度 ★主操作 ═══════════════════════════════ -->
+    <section id="z3" aria-labelledby="z3-h" hidden>
+      <h2 id="z3-h">基準 — 崩れやすい順</h2>
+      <ol id="criticality"></ol>
+      <div class="grid-actions">
+        <button type="button" id="add-crit">+ 基準を足す</button>
+        <span class="hint" id="crit-limit"></span>
+      </div>
+      <p class="sum-note">合計 100%(内部では常に厳密に 100%)</p>
+      <p class="softwarn" id="warn-crit" role="status"></p>
+    </section>
+
+    <!-- ══ Z4 貢献度 ═════════════════════════════════════════════ -->
+    <section id="z4" aria-labelledby="z4-h" hidden>
+      <h2 id="z4-h">なぜ勝ったか</h2>
+
+      <div class="contrib-head">
+        <label for="challenger">挑戦者</label>
+        <select id="challenger"></select>
+      </div>
+      <p class="note">この選択は貢献度の内訳だけを変えます。崩れやすさの計算は常に全ての選択肢を相手にしています。</p>
+
+      <h3 id="g-h">勝ち幅の内訳(勝敗貢献度)</h3>
+      <div id="gbars"></div>
+      <div class="gaxis" id="gaxis"></div>
+      <p class="hundred-line" id="h100-line"><span>100% = 勝ち幅の全部</span></p>
+      <p class="note" id="g-cross"></p>
+      <p class="note">この分解は、加重和の各項が総和に占める割合を示すものです。
+学術的に検証された指標ではありません。</p>
+
+      <h3>各選択肢のスコアの内訳</h3>
+      <div id="stacks"></div>
+    </section>
+  </div>
+
+  <!-- ══ Z5 重み履歴 ═════════════════════════════════════════════ -->
+  <section id="z5" aria-labelledby="z5-h" hidden>
+    <h2 id="z5-h">重みの動き</h2>
+    <ol id="weight-history"></ol>
+    <p id="anchor-warn" role="status" hidden></p>
+    <p class="note" id="restore-note" hidden></p>
+  </section>
+
+  <!-- ══ Z6 採点グリッド ═════════════════════════════════════════ -->
+  <section id="z6" aria-labelledby="z6-h">
+    <h2 id="z6-h">採点</h2>
+    <div class="grid-wrap">
+      <table id="grid">
+        <thead>
+          <tr id="grid-head">
+            <th scope="col" class="corner">選択肢 \ 基準</th>
+          </tr>
+        </thead>
+        <tbody id="grid-body"></tbody>
+      </table>
+    </div>
+    <div class="grid-actions">
+      <button type="button" id="add-opt">+ 選択肢を足す</button>
+      <span class="hint" id="opt-limit"></span>
+    </div>
+    <p class="softwarn" id="warn-opt" role="status"></p>
+    <p class="note">選択肢を足しても、既存選択肢どうしの相対順位は変わりません。
+新しい選択肢がより高いスコアを取って1位になることはあります。</p>
+  </section>
+
+</main>
+
+<!-- ══ フッタ — プライバシー(常時表示。AC-25)══════════════════ -->
+<footer id="privacy">このページのデータは、あなたのブラウザにだけ保存されています。
+どこにも送信していません。</footer>
+
+<!-- ══ 型紙(構造変化のときだけ DOM を作る。D-11)══════════════ -->
+<template id="tpl-crit-row">
+  <li class="crit-row">
+    <div class="crit-head">
+      <span class="idx"></span>
+      <input type="text" class="cname" aria-label="基準の名前">
+      <button type="button" class="dir-toggle"></button>
+      <button type="button" class="more-toggle" aria-expanded="false">⋯</button>
+    </div>
+
+    <p class="crit-line"></p>
+
+    <div class="rail-wrap">
+      <div class="weight-bar"><span class="fill"></span><span class="fulcrum"></span></div>
+      <input type="range" class="rail" min="0" max="100" step="0.1" value="0">
+    </div>
+    <div class="rail-scale"><span>0%</span><span>100%</span></div>
+    <div class="zones"><span class="zone-a"></span><span class="zone-b"></span></div>
+
+    <div class="crit-controls">
+      <label class="sr-only"></label>
+      <input type="number" class="weight-num num" min="0" max="100" step="0.1">
+      <span class="hint">%</span>
+      <button type="button" class="to-threshold"></button>
+      <button type="button" class="undo" hidden>元に戻す</button>
+    </div>
+
+    <p class="critbar"><span class="track"><i></i></span><span class="val"></span><span class="most"></span></p>
+    <p class="crit-reason"></p>
+
+    <div class="crit-more" hidden>
+      <div class="row">
+        <label>最低ライン <input type="number" class="cutoff num" min="0" max="10" step="0.5" placeholder="なし"></label>
+        <button type="button" class="cutoff-clear">解除</button>
+        <button type="button" class="del-crit">この基準を削除</button>
+      </div>
+    </div>
+  </li>
+</template>
+
+<template id="tpl-grid-row">
+  <tr>
+    <th scope="row"><input type="text" class="oname" aria-label="選択肢の名前"></th>
+  </tr>
+</template>
+
+<template id="tpl-contrib-row">
+  <div class="gbar">
+    <span class="lbl"><span class="n"></span><span class="v"></span></span>
+    <span class="axis0"><i class="seg"></i></span>
+  </div>
+</template>
+
+
+<script id="tenbin-core">
+/*===TENBIN-CORE-BEGIN===*/
+
+// ───────────────────────────────────────────────────────────────
+//  天秤 L1 計算コア(純粋)
+//  外部を一切読まない。副作用を持たない。例外を投げない。
+//  重み・スコアは内部では常に [0,1]。100 倍するのは fmt.* の中だけ。
+// ───────────────────────────────────────────────────────────────
+
+const VERSION = "1.0.0";
+
+// 単一の epsilon(design.md §5-4 D-9)。全ての「ゼロとの比較」に用いる。
+const EPS = 1e-9;
+
+// ───────────────────────────────────────────────────────────────
+//  fmt — フォーマッタ群(design.md §4-14 / tasks.md §1-15)
+//  丸めるのはここだけ。丸めた値を計算に戻さない(D-8)。
+// ───────────────────────────────────────────────────────────────
+
+const DASH = "—";
+
+// NaN / ±Infinity を画面に出さないための最後の砦
+// MAJOR-2: fmt.* は内部で v * 100 してから toFixed する。引数が有限でも
+// v*100 が overflow すると toFixed は文字列 "Infinity" を返す。砦を乗算の後ろにも置く。
+function isShowable(v) {
+  return typeof v === "number" && Number.isFinite(v) && Number.isFinite(v * 100);
+}
+
+// 必ず符号を付ける。値の符号は元の値から取る(+0.0 を出さない)
+function signedFixed(v, digits) {
+  const scaled = v * 100;
+  const minus = v < 0 || Object.is(v, -0);
+  return (minus ? "-" : "+") + Math.abs(scaled).toFixed(digits);
+}
+
+const fmt = Object.freeze({
+  // S_i → "67.0"
+  score(s) { return isShowable(s) ? (s * 100).toFixed(1) : DASH; },
+  // 正規化スコア a_ij → "3.0"(0-10 尺度。AC-14 のセル単位検証値、最低ライン欄と同じ尺度)
+  score10(a) { return isShowable(a) ? (a * 10).toFixed(1) : DASH; },
+  // w_j → "35.0"
+  weight(w) { return isShowable(w) ? (w * 100).toFixed(1) : DASH; },
+  // w_j → "30.882353"
+  weight6(w) { return isShowable(w) ? (w * 100).toFixed(6) : DASH; },
+  // Δw → "+6.8" / "-8.6"(必ず符号)
+  points(d) { return isShowable(d) ? signedFixed(d, 1) : DASH; },
+  // g_j → "+300.0" / "-171.4"(必ず符号)
+  percent(g) { return isShowable(g) ? signedFixed(g, 1) : DASH; },
+  // sens は「重み単位の逆数」。100 倍しない(design.md §4-6-1)
+  sens(s) {
+    if (!isShowable(s)) { return DASH; }
+    if (!(Math.abs(s) > 0)) { return "0"; }
+    return s.toFixed(1);
+  },
+  dash() { return DASH; }
+});
+
+// 足切り値は 0-10 尺度の生値なので、100 倍しない専用の整形
+function fmtCutoff(v) {
+  return isShowable(v) ? v.toFixed(1) : DASH;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  TEXT — prd §5-1〜§5-8 の正典文言。{} のみを置換する。
+// ───────────────────────────────────────────────────────────────
+
+const TEXT = Object.freeze({
+
+  // §5-3 退化状態
+  degenerate: Object.freeze({
+    "no-criteria": "何で比べるかを決めてください。基準を1つ以上足してください。",
+    "no-options": "まず、比べたいものを2つ以上足してください。",
+    "one-option": "比べる相手がいません。選択肢をもう1つ足してください。",
+    "all-excluded": "すべての選択肢が最低ラインで除外されました。最低ラインを見直してください。",
+    "tie": "同点です。基準またはスコアを見直してください。"
+  }),
+  unfilledCells(c) {
+    return "未入力のセルが " + c + " 個あります。埋めるまで結論は出せません。";
+  },
+
+  // §8-2 / §5-3 の警告(退化ではない)
+  warnZeroWeights: "全ての基準の重みが 0 です。等分として計算しています。",
+  warnManyCriteria: "基準が重複していないか確認してください。",
+  warnManyOptions: "比較しきれていない選択肢がないか確認してください。",
+
+  // §5-1 ラベル本体
+  labelLine(label, displayDelta, displayTheta) {
+    if (label === "robust") {
+      return "robust — どの単一基準の重みを動かしても結論は変わりません(Δ* = 逆転不能)";
+    }
+    if (label === "fragile") {
+      return "fragile — 結論はごく僅かな重みの差で崩れます(Δ* = " + displayDelta +
+        "ポイント ≤ しきい値 " + displayTheta + "ポイント)";
+    }
+    return "contingent — 結論は重みの置き方に依存します(Δ* = " + displayDelta +
+      "ポイント > しきい値 " + displayTheta + "ポイント)";
+  },
+
+  // §5-1 一次出力(fragile / contingent)
+  verdictLead(winnerName, kName, displayW, displayWStar, displayDelta, loserName, r) {
+    return winnerName + " の1位は、" + kName + "の重みを " + displayW + "% から " +
+      displayWStar + "%(" + displayDelta + "ポイント)に動かすと " + loserName +
+      " に入れ替わります。他の " + r + " 個の基準では単独で逆転しません。";
+  },
+  verdictAlso(kName, displayWStar, up) {
+    return kName + "を " + displayWStar + "% まで" + (up ? "上げて" : "下げて") +
+      "も同じことが起きます。";
+  },
+  verdictDominantShort(kName) {
+    return kName + "の重みは単独では結論を変えません。";
+  },
+
+  // §5-2 支配的優位(robust のときの総括文と各基準の理由文)
+  verdictRobustLead(winnerName) {
+    return winnerName + " の1位は、どの単一基準の重みを 0% から 100% のどこに動かしても入れ替わりません。";
+  },
+  dominantReason(kName, winnerName) {
+    return kName + " — 逆転不能。" + winnerName +
+      " がこの基準でも勝っている(または差が僅少)ため、重みを上げても " + winnerName +
+      " のリードが広がるだけです。";
+  },
+  robustCaveat: "基準そのものが抜けている可能性は、この分析では検出できません。",
+
+  // FR-10 臨界度行の文言
+  criticalityRow(displayW, displayWStar, displayDelta, opponentName) {
+    return "現在 " + displayW + "% → 逆転 " + displayWStar + "%(" + displayDelta +
+      "ポイント) " + opponentName + " に逆転";
+  },
+
+  // §5-4 逆算検知
+  anchoring(n, f) {
+    return "重みを " + n + " 回編集する間に1位が " + f + " 回入れ替わっています。\n" +
+      "結論に合わせて重みを調整していないか確認してください。";
+  },
+  initialWeightLine(kName, displayInitial, displayNow) {
+    return "最初の重み: " + kName + ": " + displayInitial + "%  →  現在: " + displayNow + "%";
+  },
+
+  // §5-5 プライバシー
+  privacy: "このページのデータは、あなたのブラウザにだけ保存されています。\nどこにも送信していません。",
+  privacyNoStorage: "このブラウザではデータを保存できません。\nこのページを閉じると入力は失われます。(どこにも送信していません。)",
+
+  // §5-6 rank invariance
+  rankInvariance: "選択肢を足しても、既存選択肢どうしの相対順位は変わりません。\n新しい選択肢がより高いスコアを取って1位になることはあります。",
+
+  // §5-7 貢献度の但し書き
+  contributionCaveat: "この分解は、加重和の各項が総和に占める割合を示すものです。\n学術的に検証された指標ではありません。",
+
+  // §5-8 足切りによる除外
+  exclusion(optionName, criterionName, cutoff) {
+    return optionName + " — " + criterionName + "が最低ライン" + fmtCutoff(cutoff) + "を下回るため除外";
+  }
+});
+
+// ───────────────────────────────────────────────────────────────
+//  §4-1 normalize / normalizeMatrix
+// ───────────────────────────────────────────────────────────────
+
+function normalize(raw, direction) {
+  if (raw === null || raw === undefined) { return null; }
+  if (typeof raw !== "number" || !Number.isFinite(raw)) { return null; }
+  // クランプを除算より前に置く(1e308 でも Infinity を作らない)
+  const v = raw < 0 ? 0 : (raw > 10 ? 10 : raw);
+  if (direction === "cost") { return (10 - v) / 10; }
+  return v / 10;
+}
+
+function normalizeMatrix(options, criteria) {
+  const opts = Array.isArray(options) ? options : [];
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const out = [];
+  for (let i = 0; i < opts.length; i++) {
+    const row = [];
+    const scores = (opts[i] && opts[i].scores && typeof opts[i].scores === "object") ? opts[i].scores : {};
+    for (let j = 0; j < crits.length; j++) {
+      const c = crits[j] || {};
+      const raw = Object.prototype.hasOwnProperty.call(scores, c.id) ? scores[c.id] : null;
+      row.push(normalize(raw === undefined ? null : raw, c.direction));
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-2 normalizeWeights
+// ───────────────────────────────────────────────────────────────
+
+function normalizeWeights(rawWeights) {
+  const raw = Array.isArray(rawWeights) ? rawWeights : [];
+  const n = raw.length;
+  if (n === 0) { return []; }
+  const safe = [];
+  let sum = 0;
+  for (let j = 0; j < n; j++) {
+    const v = (typeof raw[j] === "number" && Number.isFinite(raw[j]) && raw[j] > 0) ? raw[j] : 0;
+    safe.push(v);
+    sum += v;
+  }
+  // Z-1 / E-9: 除算より前に分母を検査する。0/0 を作らない。
+  // MAJOR-1: 下側(sum = 0)だけでなく上側(Σŵ の overflow = Infinity)も検査する。
+  // Infinity で割ると全ての重みが 0 になり、事後条件 |Σw − 1| ≤ EPS を破る。
+  if (!Number.isFinite(sum) || sum <= EPS) {
+    const eq = [];
+    for (let j = 0; j < n; j++) { eq.push(1 / n); }
+    return eq;
+  }
+  const out = [];
+  for (let j = 0; j < n; j++) { out.push(safe[j] / sum); }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-3 reweight — 比例再正規化
+//  tippingPoint と同一の写像でなければならない(AC-10)
+// ───────────────────────────────────────────────────────────────
+
+function reweight(w, k, x) {
+  const src = Array.isArray(w) ? w : [];
+  const n = src.length;
+  if (n === 0) { return []; }
+  if (n === 1) { return [1]; }
+  if (!Number.isFinite(k) || k < 0 || k >= n) { return src.slice(); }
+  const wk = src[k];
+  // Z-5 / E-6: 単独 100% のとき恒等写像。除算より前に検査する。
+  if (!Number.isFinite(wk) || wk >= 1 - EPS) { return src.slice(); }
+  // MINOR-3: 事前条件 x ∈ [0,1]。破られたら例外ではなく定義された縮退値に倒す(§4-0)。
+  const xc = Number.isFinite(x) ? (x < 0 ? 0 : (x > 1 ? 1 : x)) : wk;
+  const out = [];
+  for (let j = 0; j < n; j++) {
+    if (j === k) { out.push(xc); }
+    else { out.push(src[j] * (1 - xc) / (1 - wk)); }
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-4 computeScores — 加重和(j 昇順の単純な総和。Kahan を使わない)
+// ───────────────────────────────────────────────────────────────
+
+function computeScores(a, w) {
+  const rows = Array.isArray(a) ? a : [];
+  const ws = Array.isArray(w) ? w : [];
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = Array.isArray(rows[i]) ? rows[i] : [];
+    let s = 0;
+    for (let j = 0; j < ws.length; j++) {
+      const v = row[j];
+      // 防御的に null を 0 とするが、この経路に入ること自体が呼び出し側のバグ
+      s += ws[j] * ((typeof v === "number" && Number.isFinite(v)) ? v : 0);
+    }
+    out.push(s);
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-5 rank — 順位付け(安定ソート、tied は EPS 判定 E-1)
+// ───────────────────────────────────────────────────────────────
+
+function rank(scores, options) {
+  const s = Array.isArray(scores) ? scores : [];
+  const n = s.length;
+  const order = [];
+  for (let i = 0; i < n; i++) { order.push(i); }
+  order.sort(function (p, q) {
+    const dp = s[q] - s[p];
+    if (!Number.isFinite(dp)) { return 0; }
+    if (dp < 0) { return -1; }
+    if (dp > 0) { return 1; }
+    return 0;
+  });
+  const winnerIndex = n === 0 ? -1 : order[0];
+  let tied = false;
+  if (n >= 2) { tied = (s[order[0]] - s[order[1]]) <= EPS; }
+  return { order: order, winnerIndex: winnerIndex, tied: tied };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-6 tippingPoint — 逆転閾値 ★中核
+//  Δw_k = D₀(1 − w_k)/(D₀ − d_k)、w_k* = w_k + Δw_k
+//  判定順序 1〜7 を厳密に守る。これが安全性の根拠(D-7)。
+// ───────────────────────────────────────────────────────────────
+
+function tippingPoint(d0, dk, wk) {
+  const dominant = { feasible: false, delta: Infinity, wStar: NaN, reason: "dominant" };
+  if (!Number.isFinite(d0) || !Number.isFinite(dk) || !Number.isFinite(wk)) { return dominant; }
+  // 1. 同点(または勝ち幅が雑音以下)
+  if (d0 <= EPS) { return dominant; }
+  // 2. 単独 100%
+  if (wk >= 1 - EPS) { return dominant; }
+  // 3. 実行可能性
+  const up = dk < -EPS;                 // E-3: 上げて逆転
+  const down = (wk * dk) > (d0 + EPS);  // E-4: 下げて逆転
+  // 4. 支配的優位(FR-09)。ここで返るので d_k = D₀ の除算に到達しない。
+  if (!up && !down) { return dominant; }
+  // 5. 分母
+  const den = d0 - dk;
+  // 6. E-5 数値的安全弁
+  if (Math.abs(den) <= EPS) { return dominant; }
+  // 7. 閉形式
+  const delta = d0 * (1 - wk) / den;
+  return { feasible: true, delta: delta, wStar: wk + delta, reason: up ? "up" : "down" };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-7 criticality — 臨界度ランキング
+//  全挑戦者を走査し argmin |Δw| を採る。Infinity の昇順ソートで
+//  逆転不能が自動的に末尾へ行く(末尾へ置く分岐を書かない)。
+// ───────────────────────────────────────────────────────────────
+
+function criticality(a, w, scores, criteria, options, winnerIndex) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const opts = Array.isArray(options) ? options : [];
+  const rows = [];
+  if (!Number.isFinite(winnerIndex) || winnerIndex < 0) { return rows; }
+  const winnerName = (opts[winnerIndex] && opts[winnerIndex].name) ? opts[winnerIndex].name : "";
+
+  for (let k = 0; k < crits.length; k++) {
+    const c = crits[k] || {};
+    let bestDelta = Infinity;
+    let bestWStar = NaN;
+    let bestOpponent = -1;
+    for (let i = 0; i < opts.length; i++) {
+      if (i === winnerIndex) { continue; }
+      const d0 = scores[winnerIndex] - scores[i];
+      if (!Number.isFinite(d0) || d0 <= EPS) { continue; }   // E-2
+      const dk = a[winnerIndex][k] - a[i][k];
+      const r = tippingPoint(d0, dk, w[k]);
+      // E-10: ヒステリシス。同値なら先に見つかった挑戦者を保持する。
+      if (r.feasible && Math.abs(r.delta) < Math.abs(bestDelta) - EPS) {
+        bestDelta = r.delta;
+        bestWStar = r.wStar;
+        bestOpponent = i;
+      }
+    }
+    const infeasible = bestOpponent < 0;
+    const opponent = infeasible ? null : opts[bestOpponent];
+    const opponentName = (opponent && opponent.name) ? opponent.name : null;
+    const weightK = w[k];
+    const displayWeight = fmt.weight(weightK);
+    const displayDelta = infeasible ? fmt.dash() : fmt.points(bestDelta);
+    const displayWStar = infeasible ? fmt.dash() : fmt.weight(bestWStar);
+    const sens = infeasible ? 0 : 1 / Math.abs(bestDelta);
+    rows.push({
+      criterionId: c.id === undefined ? null : c.id,
+      name: c.name === undefined ? "" : c.name,
+      weight: weightK,
+      displayWeight: displayWeight,
+      infeasible: infeasible,
+      delta: infeasible ? Infinity : bestDelta,
+      displayDelta: displayDelta,
+      wStar: infeasible ? NaN : bestWStar,
+      displayWStar: displayWStar,
+      sens: sens,
+      displaySens: fmt.sens(sens),
+      opponentId: (opponent && opponent.id !== undefined) ? opponent.id : null,
+      opponentName: opponentName,
+      text: infeasible
+        ? TEXT.dominantReason(c.name === undefined ? "" : c.name, winnerName)
+        : TEXT.criticalityRow(displayWeight, displayWStar, displayDelta, opponentName === null ? "" : opponentName)
+    });
+  }
+
+  // |delta| 昇順、同値なら入力順(安定ソート)。Infinity 同士で NaN を作らない。
+  rows.sort(function (x, y) {
+    const kx = x.infeasible ? Infinity : Math.abs(x.delta);
+    const ky = y.infeasible ? Infinity : Math.abs(y.delta);
+    if (kx === ky) { return 0; }
+    return kx < ky ? -1 : 1;
+  });
+  return rows;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-8 winContribution — 勝敗貢献度 g_j = w_j(a_Wj − a_Lj)/D₀
+// ───────────────────────────────────────────────────────────────
+
+function winContribution(a, w, winnerIndex, challengerIndex, d0, criteria) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  // Z-3: 除算より前に分母を検査する。ここでゼロ除算を起こさない。
+  if (!Number.isFinite(d0) || d0 <= EPS) { return []; }
+  if (!Number.isFinite(winnerIndex) || !Number.isFinite(challengerIndex)) { return []; }
+  const out = [];
+  for (let j = 0; j < crits.length; j++) {
+    const c = crits[j] || {};
+    const num = w[j] * (a[winnerIndex][j] - a[challengerIndex][j]);
+    const value = num / d0;
+    out.push({
+      criterionId: c.id === undefined ? null : c.id,
+      name: c.name === undefined ? "" : c.name,
+      value: value,
+      display: fmt.percent(value),
+      negative: value < 0,
+      // 「この基準は単独で結論をひっくり返せるか」は L1 が確定させる(INV-2)。
+      // tippingPoint 手順3 の down(E-4)と同一式・同一 EPS。g_j > 1 を素手で比較しない。
+      crossesUnity: Number.isFinite(num) && (num > (d0 + EPS))
+    });
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-9 scoreContribution — スコア貢献度 c_ij = w_j a_ij / S_i
+// ───────────────────────────────────────────────────────────────
+
+function scoreContribution(a, w, scores, optionIndex, criteria) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const s = Array.isArray(scores) ? scores[optionIndex] : undefined;
+  // E-8 / Z-2: 除算より前に判定する。0/0 = NaN を一度も生成しない。
+  if (typeof s !== "number" || !Number.isFinite(s) || s <= EPS) {
+    const dashed = [];
+    for (let j = 0; j < crits.length; j++) {
+      const c = crits[j] || {};
+      dashed.push({
+        criterionId: c.id === undefined ? null : c.id,
+        name: c.name === undefined ? "" : c.name,
+        value: null,
+        display: fmt.dash(),
+        negative: false
+      });
+    }
+    return dashed;
+  }
+  const out = [];
+  for (let j = 0; j < crits.length; j++) {
+    const c = crits[j] || {};
+    const value = w[j] * a[optionIndex][j] / s;
+    out.push({
+      criterionId: c.id === undefined ? null : c.id,
+      name: c.name === undefined ? "" : c.name,
+      value: value,
+      display: fmt.weight(value),
+      negative: value < 0
+    });
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-10 robustness — 頑健性ラベルと文言生成
+// ───────────────────────────────────────────────────────────────
+
+function robustness(rows, theta, winnerName, challengerName) {
+  const rs = Array.isArray(rows) ? rows : [];
+  const th = (typeof theta === "number" && Number.isFinite(theta)) ? theta : 0.10;
+  const wName = typeof winnerName === "string" ? winnerName : "";
+  const cName = typeof challengerName === "string" ? challengerName : "";
+
+  const head = rs.length > 0 ? rs[0] : null;
+  const deltaStar = (head === null || head.infeasible) ? Infinity : Math.abs(head.delta);
+
+  let label;
+  if (!Number.isFinite(deltaStar)) { label = "robust"; }
+  else if (deltaStar <= th + EPS) { label = "fragile"; }   // E-7: 境界は fragile 側
+  else { label = "contingent"; }
+
+  const displayDelta = (label === "robust") ? "逆転不能" : fmt.weight(deltaStar);
+  const labelLine = TEXT.labelLine(label, displayDelta, fmt.weight(th));
+
+  const feasibleRows = [];
+  const dominantRows = [];
+  for (let i = 0; i < rs.length; i++) {
+    if (rs[i].infeasible) { dominantRows.push(rs[i]); } else { feasibleRows.push(rs[i]); }
+  }
+
+  let verdict = "";
+  if (label === "robust") {
+    verdict = TEXT.verdictRobustLead(wName);
+    for (let i = 0; i < dominantRows.length; i++) {
+      verdict += TEXT.dominantReason(dominantRows[i].name, wName);
+    }
+  } else {
+    const first = feasibleRows[0];
+    const loser = (first.opponentName === null || first.opponentName === undefined) ? cName : first.opponentName;
+    verdict = TEXT.verdictLead(
+      wName, first.name, first.displayWeight, first.displayWStar,
+      first.displayDelta, loser, dominantRows.length
+    );
+    for (let i = 1; i < feasibleRows.length; i++) {
+      verdict += TEXT.verdictAlso(feasibleRows[i].name, feasibleRows[i].displayWStar, feasibleRows[i].delta > 0);
+    }
+    for (let i = 0; i < dominantRows.length; i++) {
+      verdict += TEXT.verdictDominantShort(dominantRows[i].name);
+    }
+  }
+
+  return {
+    label: label,
+    deltaStar: deltaStar,
+    displayDelta: displayDelta,
+    kStarId: (label === "robust" || head === null) ? null : head.criterionId,
+    kStarName: (label === "robust" || head === null) ? null : head.name,
+    labelLine: labelLine,
+    verdict: verdict,
+    caveat: (label === "robust") ? TEXT.robustCaveat : null
+  };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-11 anchoringDetect — 結論ありき逆算の検知(時計を読まない)
+// ───────────────────────────────────────────────────────────────
+
+function anchoringDetect(history, threshold) {
+  const h = Array.isArray(history) ? history : [];
+  const th = (typeof threshold === "number" && Number.isFinite(threshold) && threshold >= 1) ? threshold : 3;
+  let flips = 0;
+  for (let i = 0; i < h.length; i++) {
+    const e = h[i];
+    if (e && typeof e === "object" && e.leaderBefore !== e.leaderAfter) { flips++; }
+  }
+  const warn = flips >= th;
+  return {
+    edits: h.length,
+    flips: flips,
+    warn: warn,
+    message: warn ? TEXT.anchoring(h.length, flips) : null
+  };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-12 applyCutoffs — 足切り(加重和の前段)
+// ───────────────────────────────────────────────────────────────
+
+function applyCutoffs(a, criteria, options) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const opts = Array.isArray(options) ? options : [];
+  const includedIndices = [];
+  const excluded = [];
+  for (let i = 0; i < opts.length; i++) {
+    const row = Array.isArray(a[i]) ? a[i] : [];
+    let hit = -1;
+    for (let j = 0; j < crits.length; j++) {
+      const c = crits[j] || {};
+      const cut = c.cutoff;
+      if (typeof cut !== "number" || !Number.isFinite(cut)) { continue; }
+      const v = row[j];
+      if (typeof v !== "number" || !Number.isFinite(v)) { continue; }
+      if (v * 10 < cut - EPS) { hit = j; break; }   // E-11
+    }
+    if (hit < 0) {
+      includedIndices.push(i);
+    } else {
+      const c = crits[hit] || {};
+      excluded.push({
+        index: i,
+        text: TEXT.exclusion(
+          (opts[i] && opts[i].name) ? opts[i].name : "",
+          c.name === undefined ? "" : c.name,
+          c.cutoff
+        )
+      });
+    }
+  }
+  return { includedIndices: includedIndices, excluded: excluded };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §3-1 / §3-5 / §3-6 状態の生成・移行・検証
+// ───────────────────────────────────────────────────────────────
+
+function createInitialState() {
+  return {
+    schemaVersion: 1,
+    criteria: [],
+    options: [],
+    settings: { theta: 0.10, flipThreshold: 3, challengerId: null },
+    initialWeights: null,
+    history: []
+  };
+}
+
+function migrateState(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) { return raw; }
+  let cur = raw;
+  // schemaVersion を見て段階的に持ち上げる。v1 では恒等変換だが分岐の器を置く。
+  let v = Number.isFinite(cur.schemaVersion) ? cur.schemaVersion : 1;
+  if (v < 1) { v = 1; }
+  while (v < 1) {
+    // 将来の移行段をここに積む
+    v++;
+  }
+  if (cur.schemaVersion !== v) {
+    const next = {};
+    for (const key in cur) {
+      if (Object.prototype.hasOwnProperty.call(cur, key)) { next[key] = cur[key]; }
+    }
+    next.schemaVersion = v;
+    cur = next;
+  }
+  return cur;
+}
+
+const MAX_ITEMS = 10;
+const MAX_NAME = 200;
+const MAX_HISTORY = 500;
+// MAJOR-1: 重みの生値の上限。cutoff / theta / スコアが上下限を持つのに重みだけが
+// 無制限だったため、1e308 が ok として通り Σŵ が overflow していた。
+const MAX_RAW_WEIGHT = 1e6;
+
+function clampName(v) {
+  const s = (typeof v === "string") ? v : "";
+  return s.length > MAX_NAME ? s.slice(0, MAX_NAME) : s;
+}
+
+// 生スコアを [0,10] にクランプし 0.5 の倍数に丸める
+function repairRawScore(v, report) {
+  if (v === null || v === undefined) { return null; }
+  if (typeof v !== "number" || !Number.isFinite(v)) { report("スコアが数値でないため未入力にしました"); return null; }
+  let x = v;
+  if (x < 0) { x = 0; report("スコアを 0 にクランプしました"); }
+  else if (x > 10) { x = 10; report("スコアを 10 にクランプしました"); }
+  const snapped = Math.round(x * 2) / 2;
+  if (snapped !== x) { report("スコアを 0.5 刻みに丸めました"); }
+  return snapped;
+}
+
+function validateState(parsed) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) { return { failed: true }; }
+  if (!Array.isArray(parsed.criteria) || !Array.isArray(parsed.options)) { return { failed: true }; }
+
+  const notes = [];
+  let repaired = false;
+  function report(msg) { repaired = true; if (notes.indexOf(msg) < 0) { notes.push(msg); } }
+
+  let idSeq = 0;
+  function freshId(prefix) { idSeq++; return prefix + "_r" + idSeq; }
+
+  // ── 基準 ────────────────────────────────────────────────
+  let rawCriteria = parsed.criteria;
+  if (rawCriteria.length > MAX_ITEMS) { rawCriteria = rawCriteria.slice(0, MAX_ITEMS); report("基準を先頭10件で切りました"); }
+  const criteria = [];
+  const critIdSeen = {};
+  for (let j = 0; j < rawCriteria.length; j++) {
+    const src = (rawCriteria[j] && typeof rawCriteria[j] === "object") ? rawCriteria[j] : {};
+    let id = (typeof src.id === "string" && src.id.length > 0) ? src.id : null;
+    if (id === null) { id = freshId("c"); report("基準の id を補いました"); }
+    if (Object.prototype.hasOwnProperty.call(critIdSeen, id)) {
+      // 後勝ち: 先に現れた方に新しい id を振る
+      const prev = criteria[critIdSeen[id]];
+      prev.id = freshId("c");
+      report("基準の id 重複を解消しました");
+    }
+    const name = clampName(src.name);
+    if (typeof src.name === "string" && src.name.length > MAX_NAME) { report("基準名を200文字で切りました"); }
+    let direction = src.direction;
+    if (direction !== "benefit" && direction !== "cost") { direction = "benefit"; report("基準の向きを benefit に修復しました"); }
+    let rawWeight = src.rawWeight;
+    if (typeof rawWeight !== "number" || !Number.isFinite(rawWeight) || rawWeight < 0) {
+      rawWeight = 0;
+      report((name === "" ? "基準" : name) + "の重みを 0 に修復しました");
+    } else if (rawWeight > MAX_RAW_WEIGHT) {
+      rawWeight = MAX_RAW_WEIGHT;
+      report((name === "" ? "基準" : name) + "の重みを上限に丸めました");
+    }
+    let cutoff = src.cutoff;
+    if (cutoff === undefined) { cutoff = null; }
+    if (cutoff !== null) {
+      if (typeof cutoff !== "number" || !Number.isFinite(cutoff)) { cutoff = null; report("最低ラインを解除しました"); }
+      else if (cutoff < 0) { cutoff = 0; report("最低ラインを 0 にクランプしました"); }
+      else if (cutoff > 10) { cutoff = 10; report("最低ラインを 10 にクランプしました"); }
+    }
+    critIdSeen[id] = criteria.length;
+    criteria.push({ id: id, name: name, direction: direction, rawWeight: rawWeight, cutoff: cutoff });
+  }
+  // 重みの合計が 0 なら等重み(全て 1)にする
+  if (criteria.length > 0) {
+    let sumW = 0;
+    for (let j = 0; j < criteria.length; j++) { sumW += criteria[j].rawWeight; }
+    if (sumW <= EPS) {
+      for (let j = 0; j < criteria.length; j++) { criteria[j].rawWeight = 1; }
+      report("重みの合計が 0 のため等重みにしました");
+    }
+  }
+
+  // ── 選択肢 ──────────────────────────────────────────────
+  let rawOptions = parsed.options;
+  if (rawOptions.length > MAX_ITEMS) { rawOptions = rawOptions.slice(0, MAX_ITEMS); report("選択肢を先頭10件で切りました"); }
+  const options = [];
+  const optIdSeen = {};
+  for (let i = 0; i < rawOptions.length; i++) {
+    const src = (rawOptions[i] && typeof rawOptions[i] === "object") ? rawOptions[i] : {};
+    let id = (typeof src.id === "string" && src.id.length > 0) ? src.id : null;
+    if (id === null) { id = freshId("o"); report("選択肢の id を補いました"); }
+    if (Object.prototype.hasOwnProperty.call(optIdSeen, id)) {
+      const prev = options[optIdSeen[id]];
+      prev.id = freshId("o");
+      report("選択肢の id 重複を解消しました");
+    }
+    const name = clampName(src.name);
+    if (typeof src.name === "string" && src.name.length > MAX_NAME) { report("選択肢名を200文字で切りました"); }
+    const srcScores = (src.scores && typeof src.scores === "object" && !Array.isArray(src.scores)) ? src.scores : {};
+    const scores = {};
+    for (let j = 0; j < criteria.length; j++) {
+      const cid = criteria[j].id;
+      if (Object.prototype.hasOwnProperty.call(srcScores, cid)) {
+        scores[cid] = repairRawScore(srcScores[cid], report);
+      } else {
+        scores[cid] = null;
+        if (Object.keys(srcScores).length > 0) { report("不足していた基準のスコアを未入力で補いました"); }
+      }
+    }
+    for (const key in srcScores) {
+      if (Object.prototype.hasOwnProperty.call(srcScores, key) &&
+        !Object.prototype.hasOwnProperty.call(scores, key)) {
+        report("未知の基準 id のスコアを捨てました");
+      }
+    }
+    optIdSeen[id] = options.length;
+    options.push({ id: id, name: name, scores: scores });
+  }
+
+  // ── 設定 ────────────────────────────────────────────────
+  const srcSettings = (parsed.settings && typeof parsed.settings === "object" && !Array.isArray(parsed.settings))
+    ? parsed.settings : {};
+  let theta = srcSettings.theta;
+  if (typeof theta !== "number" || !Number.isFinite(theta) || theta < 0 || theta > 1) {
+    theta = 0.10;
+    if (srcSettings.theta !== undefined) { report("しきい値を既定の 0.10 に戻しました"); }
+  }
+  let flipThreshold = srcSettings.flipThreshold;
+  if (typeof flipThreshold !== "number" || !Number.isFinite(flipThreshold) || flipThreshold < 1) {
+    flipThreshold = 3;
+    if (srcSettings.flipThreshold !== undefined) { report("入替検知のしきい値を既定の 3 に戻しました"); }
+  }
+  let challengerId = (typeof srcSettings.challengerId === "string") ? srcSettings.challengerId : null;
+  if (challengerId !== null && !Object.prototype.hasOwnProperty.call(optIdSeen, challengerId)) {
+    challengerId = null;
+    report("存在しない挑戦者の指定を解除しました");
+  }
+
+  // ── w⁰(初期重み)───────────────────────────────────────
+  let initialWeights = null;
+  const srcInit = parsed.initialWeights;
+  if (srcInit && typeof srcInit === "object" && !Array.isArray(srcInit)) {
+    const keys = Object.keys(srcInit);
+    let matches = keys.length === criteria.length;
+    if (matches) {
+      for (let j = 0; j < criteria.length; j++) {
+        const v = srcInit[criteria[j].id];
+        // MAJOR-2: 有限性だけでなく [0,1] の範囲も検査する。重みは常に [0,1]。
+        if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) { matches = false; break; }
+      }
+    }
+    if (matches) {
+      initialWeights = {};
+      for (let j = 0; j < criteria.length; j++) { initialWeights[criteria[j].id] = srcInit[criteria[j].id]; }
+    } else {
+      initialWeights = null;
+      report("最初の重みの記録が現在の基準と合わないため破棄しました");
+    }
+  } else if (srcInit !== null && srcInit !== undefined) {
+    report("最初の重みの記録を破棄しました");
+  }
+
+  // ── 履歴(壊れた要素だけを捨てる)──────────────────────
+  const history = [];
+  if (Array.isArray(parsed.history)) {
+    for (let i = 0; i < parsed.history.length; i++) {
+      const e = parsed.history[i];
+      if (!e || typeof e !== "object" || Array.isArray(e)) { report("壊れた履歴を1件捨てました"); continue; }
+      if (typeof e.criterionId !== "string" ||
+        typeof e.before !== "number" || !Number.isFinite(e.before) ||
+        typeof e.after !== "number" || !Number.isFinite(e.after)) {
+        report("壊れた履歴を1件捨てました");
+        continue;
+      }
+      history.push({
+        at: (typeof e.at === "number" && Number.isFinite(e.at)) ? e.at : 0,
+        criterionId: e.criterionId,
+        criterionName: clampName(e.criterionName),
+        before: e.before,
+        after: e.after,
+        leaderBefore: (typeof e.leaderBefore === "string") ? e.leaderBefore : null,
+        leaderAfter: (typeof e.leaderAfter === "string") ? e.leaderAfter : null
+      });
+    }
+    if (history.length > MAX_HISTORY) {
+      history.splice(0, history.length - MAX_HISTORY);
+      report("履歴を直近500件に切り詰めました");
+    }
+  } else if (parsed.history !== undefined && parsed.history !== null) {
+    report("履歴を破棄しました");
+  }
+
+  const value = {
+    schemaVersion: 1,
+    criteria: criteria,
+    options: options,
+    settings: { theta: theta, flipThreshold: flipThreshold, challengerId: challengerId },
+    initialWeights: initialWeights,
+    history: history
+  };
+
+  if (repaired) { return { repaired: true, value: value, notes: notes }; }
+  return { ok: true, value: value };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-13 analyze — 単一の入口。いかなる入力でも例外を投げない。
+// ───────────────────────────────────────────────────────────────
+
+function makeAnalysis(o) {
+  const ranking = o.ranking || [];
+  const winner = o.winner === undefined ? null : o.winner;
+  const degenerate = o.degenerate === undefined ? null : o.degenerate;
+  return {
+    ok: o.ok === true,
+    degenerate: degenerate,
+    message: o.message === undefined ? null : o.message,
+    weights: o.weights || [],
+    ranking: ranking,
+    winner: winner,
+    // MAJOR-3: 「勝者として強調してよいか」は L1 が1箇所で確定させる。
+    // 同点(tie)のとき winner は非 null だが、どちらが勝ちかは決まっていない。
+    highlightWinner: (winner !== null && degenerate !== "tie" && ranking.length >= 2),
+    challenger: o.challenger === undefined ? null : o.challenger,
+    d0: (typeof o.d0 === "number" && Number.isFinite(o.d0)) ? o.d0 : 0,
+    displayD0: o.displayD0 === undefined ? fmt.score(0) : o.displayD0,
+    criticality: o.criticality || [],
+    winContrib: o.winContrib || [],
+    robustness: o.robustness === undefined ? null : o.robustness,
+    anchoring: o.anchoring || { edits: 0, flips: 0, warn: false, message: null },
+    excluded: o.excluded || [],
+    warnings: o.warnings || []
+  };
+}
+
+function analyze(state) {
+  try {
+    const st = (state && typeof state === "object" && !Array.isArray(state)) ? state : {};
+    const criteria = Array.isArray(st.criteria) ? st.criteria : [];
+    const options = Array.isArray(st.options) ? st.options : [];
+    const settings = (st.settings && typeof st.settings === "object" && !Array.isArray(st.settings)) ? st.settings : {};
+    const theta = (typeof settings.theta === "number" && Number.isFinite(settings.theta)) ? settings.theta : 0.10;
+    const flipThreshold = (typeof settings.flipThreshold === "number" && Number.isFinite(settings.flipThreshold))
+      ? settings.flipThreshold : 3;
+    const anchoring = anchoringDetect(Array.isArray(st.history) ? st.history : [], flipThreshold);
+
+    const warnings = [];
+    if (criteria.length >= 7) { warnings.push(TEXT.warnManyCriteria); }
+    if (options.length >= 7) { warnings.push(TEXT.warnManyOptions); }
+
+    // ── 重み ────────────────────────────────────────────
+    const rawWeights = [];
+    let sumRaw = 0;
+    for (let j = 0; j < criteria.length; j++) {
+      const c = criteria[j] || {};
+      const v = (typeof c.rawWeight === "number" && Number.isFinite(c.rawWeight) && c.rawWeight > 0) ? c.rawWeight : 0;
+      rawWeights.push(v);
+      sumRaw += v;
+    }
+    if (criteria.length > 0 && sumRaw <= EPS) { warnings.push(TEXT.warnZeroWeights); }
+    const w = normalizeWeights(rawWeights);
+
+    const initial = (st.initialWeights && typeof st.initialWeights === "object" && !Array.isArray(st.initialWeights))
+      ? st.initialWeights : null;
+    const weights = [];
+    for (let j = 0; j < criteria.length; j++) {
+      const c = criteria[j] || {};
+      const iw = (initial !== null && typeof initial[c.id] === "number" && Number.isFinite(initial[c.id]))
+        ? initial[c.id] : null;
+      weights.push({
+        criterionId: c.id === undefined ? null : c.id,
+        name: c.name === undefined ? "" : c.name,
+        weight: w[j],
+        displayWeight: fmt.weight(w[j]),
+        initialWeight: iw,
+        displayInitial: iw === null ? null : fmt.weight(iw)
+      });
+    }
+
+    function degenerateResult(kind, message) {
+      return makeAnalysis({
+        ok: false, degenerate: kind, message: message,
+        weights: weights, anchoring: anchoring, warnings: warnings
+      });
+    }
+
+    // ── 退化判定 1〜3 ───────────────────────────────────
+    if (criteria.length === 0) { return degenerateResult("no-criteria", TEXT.degenerate["no-criteria"]); }
+    if (options.length === 0) { return degenerateResult("no-options", TEXT.degenerate["no-options"]); }
+    if (options.length === 1) { return degenerateResult("one-option", TEXT.degenerate["one-option"]); }
+
+    // ── 正規化行列 + NaN 遮断(D-10 第3段)───────────────
+    const a0 = normalizeMatrix(options, criteria);
+    let unfilled = 0;
+    for (let i = 0; i < a0.length; i++) {
+      for (let j = 0; j < criteria.length; j++) {
+        const v = a0[i][j];
+        if (typeof v !== "number" || !Number.isFinite(v)) { unfilled++; }
+      }
+    }
+    let weightsBroken = false;
+    for (let j = 0; j < w.length; j++) {
+      if (typeof w[j] !== "number" || !Number.isFinite(w[j])) { weightsBroken = true; }
+    }
+    if (unfilled > 0 || weightsBroken) {
+      // X-11 の裁定(tasks.md §5-2): 未入力があっても **埋まった行から順位は立ち上がる**。
+      // ux.md §3-1④「『入力が結果に効いている』感覚(US-03)が最初の1セルから得られる」。
+      // 未入力を 0 とみなすことは design.md §8-9 が禁じているので、ゼロ代用は一切しない —
+      // 埋まった行だけを computeScores に渡し(事前条件を破らない)、未入力を含む行は
+      // score:null / displayScore:"—" / rank:0 で末尾に置く。
+      const partial = [];
+      if (!weightsBroken) {
+        const filledIdx = [];
+        const filledRows = [];
+        for (let i = 0; i < a0.length; i++) {
+          let whole = true;
+          for (let j = 0; j < criteria.length; j++) {
+            const v = a0[i][j];
+            if (typeof v !== "number" || !Number.isFinite(v)) { whole = false; break; }
+          }
+          if (whole) { filledIdx.push(i); filledRows.push(a0[i]); }
+        }
+        if (filledRows.length > 0) {
+          const s = computeScores(filledRows, w);
+          const scored = [];
+          for (let k = 0; k < filledIdx.length; k++) {
+            const o = options[filledIdx[k]] || {};
+            scored.push({ optionId: o.id === undefined ? null : o.id,
+              name: o.name === undefined ? "" : o.name, score: s[k] });
+          }
+          scored.sort(function (p, q) { return q.score - p.score; });
+          for (let k = 0; k < scored.length; k++) {
+            partial.push({ optionId: scored[k].optionId, name: scored[k].name,
+              score: scored[k].score, displayScore: fmt.score(scored[k].score),
+              rank: k + 1, a: null, excluded: false, contribution: [] });
+          }
+        }
+        for (let i = 0; i < options.length; i++) {
+          if (filledIdx.indexOf(i) >= 0) { continue; }
+          const o = options[i] || {};
+          partial.push({ optionId: o.id === undefined ? null : o.id,
+            name: o.name === undefined ? "" : o.name, score: null,
+            displayScore: DASH, rank: 0, a: null, excluded: false, contribution: [] });
+        }
+      }
+      return makeAnalysis({
+        ok: false, degenerate: "unfilled-cells", message: TEXT.unfilledCells(unfilled),
+        weights: weights, anchoring: anchoring, warnings: warnings, ranking: partial
+      });
+    }
+
+    // ── 退化判定 5/6(足切りは加重和の前段)──────────────
+    const cut = applyCutoffs(a0, criteria, options);
+    const excludedRows = [];
+    for (let e = 0; e < cut.excluded.length; e++) {
+      const idx = cut.excluded[e].index;
+      const o = options[idx] || {};
+      excludedRows.push({
+        id: o.id === undefined ? null : o.id,
+        name: o.name === undefined ? "" : o.name,
+        a: a0[idx].slice(),
+        score: 0,
+        displayScore: fmt.score(0),
+        rank: 0,
+        excluded: true,
+        exclusionText: cut.excluded[e].text,
+        contribution: []
+      });
+    }
+    function withExcluded(base) {
+      base.excluded = excludedRows;
+      return base;
+    }
+
+    if (cut.includedIndices.length === 0) {
+      return withExcluded(makeAnalysis({
+        ok: false, degenerate: "all-excluded", message: TEXT.degenerate["all-excluded"],
+        weights: weights, anchoring: anchoring, warnings: warnings, excluded: excludedRows
+      }));
+    }
+    if (cut.includedIndices.length === 1) {
+      return withExcluded(makeAnalysis({
+        ok: false, degenerate: "one-option", message: TEXT.degenerate["one-option"],
+        weights: weights, anchoring: anchoring, warnings: warnings, excluded: excludedRows
+      }));
+    }
+
+    // ── 加重和 → 順位 ───────────────────────────────────
+    const aInc = [];
+    const optInc = [];
+    for (let t = 0; t < cut.includedIndices.length; t++) {
+      const idx = cut.includedIndices[t];
+      aInc.push(a0[idx]);
+      optInc.push(options[idx] || {});
+    }
+    const scores = computeScores(aInc, w);
+    const rk = rank(scores, optInc);
+    const winnerIndex = rk.winnerIndex;
+
+    // 挑戦者(FR-15): 既定は2位。設定があり、含まれていて勝者でなければそちら。
+    let challengerIndex = rk.order.length >= 2 ? rk.order[1] : -1;
+    if (typeof settings.challengerId === "string") {
+      for (let t = 0; t < optInc.length; t++) {
+        if (optInc[t].id === settings.challengerId && t !== winnerIndex) { challengerIndex = t; break; }
+      }
+    }
+
+    const ranking = [];
+    for (let r = 0; r < rk.order.length; r++) {
+      const idx = rk.order[r];
+      const o = optInc[idx];
+      ranking.push({
+        id: o.id === undefined ? null : o.id,
+        name: o.name === undefined ? "" : o.name,
+        a: aInc[idx].slice(),
+        score: scores[idx],
+        displayScore: fmt.score(scores[idx]),
+        rank: r + 1,
+        excluded: false,
+        exclusionText: null,
+        contribution: scoreContribution(aInc, w, scores, idx, criteria)
+      });
+    }
+    const winnerView = ranking.length > 0 ? ranking[0] : null;
+    let challengerView = null;
+    for (let r = 0; r < ranking.length; r++) {
+      if (challengerIndex >= 0 && ranking[r].id === optInc[challengerIndex].id && ranking[r].rank !== 1) {
+        challengerView = ranking[r];
+        break;
+      }
+    }
+    if (challengerView === null && ranking.length >= 2) { challengerView = ranking[1]; }
+
+    const d0 = (challengerIndex >= 0) ? (scores[winnerIndex] - scores[challengerIndex]) : 0;
+    const displayD0 = fmt.score(d0);
+
+    // ── 退化判定 7(同点)────────────────────────────────
+    if (rk.tied) {
+      return makeAnalysis({
+        ok: false, degenerate: "tie", message: TEXT.degenerate["tie"],
+        weights: weights, ranking: ranking, winner: winnerView, challenger: challengerView,
+        d0: d0, displayD0: displayD0,
+        criticality: [], winContrib: [], robustness: null,
+        anchoring: anchoring, excluded: excludedRows, warnings: warnings
+      });
+    }
+
+    // ── 正常系 ──────────────────────────────────────────
+    const critRows = criticality(aInc, w, scores, criteria, optInc, winnerIndex);
+    const winContrib = winContribution(aInc, w, winnerIndex, challengerIndex, d0, criteria);
+    const rob = robustness(
+      critRows, theta,
+      winnerView === null ? "" : winnerView.name,
+      challengerView === null ? "" : challengerView.name
+    );
+
+    return makeAnalysis({
+      ok: true, degenerate: null, message: null,
+      weights: weights, ranking: ranking, winner: winnerView, challenger: challengerView,
+      d0: d0, displayD0: displayD0,
+      criticality: critRows, winContrib: winContrib, robustness: rob,
+      anchoring: anchoring, excluded: excludedRows, warnings: warnings
+    });
+  } catch (err) {
+    // 事後条件: 例外を外に出さない。最悪でも退化状態として返す。
+    return makeAnalysis({
+      ok: false, degenerate: "no-criteria", message: TEXT.degenerate["no-criteria"]
+    });
+  }
+}
+
+// ───────────────────────────────────────────────────────────────
+//  コア公開面(C-4: コア領域の最後の文)
+// ───────────────────────────────────────────────────────────────
+
+const TenbinCore = Object.freeze({
+  VERSION, EPS,
+  normalize, normalizeMatrix, normalizeWeights, reweight, computeScores, rank,
+  tippingPoint, criticality, scoreContribution, winContribution,
+  robustness, anchoringDetect, applyCutoffs,
+  analyze, validateState, migrateState, createInitialState,
+  fmt, TEXT
+});
+
+/*===TENBIN-CORE-END===*/
+globalThis.TenbinCore = TenbinCore;
+</script>
+
+<script id="tenbin-persist">
+/* ═══════════════════════════════════════════════════════════════════
+   L4 永続化 — localStorage。キーは全て "tenbin.v1." 前置(AC-22)
+   依存: L1(validateState / migrateState / createInitialState)のみ
+   ═══════════════════════════════════════════════════════════════════ */
+var TenbinPersist = (function () {
+  "use strict";
+
+  var PREFIX = "tenbin.v1.";
+  // 保存デバウンス。design.md §7-5(D-15)の 300ms を採る(tasks.md §5-2 X-1 の裁定)。
+  // change 確定時は即時に書き、input 連打のみをこの値で束ねる。
+  var SAVE_DEBOUNCE_MS = 300;
+
+  var available = null;
+  var timer = 0;
+  var pending = null;
+  var listener = null;
+
+  /** 能力プローブ。プライベートモード等で例外を投げるブラウザがある(ux §7-3 B-5)。 */
+  function probe() {
+    if (available !== null) { return available; }
+    try {
+      localStorage.setItem("tenbin.v1.probe", "1");
+      localStorage.removeItem("tenbin.v1.probe");
+      available = true;
+    } catch (e) {
+      available = false;
+    }
+    return available;
+  }
+
+  function onStatus(fn) { listener = fn; }
+  function notify(msg) { if (listener) { listener(msg); } }
+
+  /** 復旧ラダー: 読めない → 隔離して初期状態。壊れている → validateState に直させる。 */
+  function load() {
+    if (!probe()) { return { state: TenbinCore.createInitialState(), fresh: true, notes: [] }; }
+    var raw = null;
+    try { raw = localStorage.getItem("tenbin.v1.state"); } catch (e) { raw = null; }
+    if (raw === null || raw === "") {
+      return { state: TenbinCore.createInitialState(), fresh: true, notes: [] };
+    }
+    var parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (e) {
+      quarantine(raw);
+      return { state: TenbinCore.createInitialState(), fresh: true, notes: ["前回のデータを読めなかったため、白紙から始めます。"] };
+    }
+    var migrated = TenbinCore.migrateState(parsed);
+    var res = TenbinCore.validateState(migrated);
+    if (res && res.failed === true) {
+      quarantine(raw);
+      return { state: TenbinCore.createInitialState(), fresh: true, notes: ["前回のデータを読めなかったため、白紙から始めます。"] };
+    }
+    var value = res && res.value ? res.value : TenbinCore.createInitialState();
+    var notes = (res && res.repaired === true && res.notes) ? res.notes.slice() : [];
+    var savedAt = null;
+    try { savedAt = readStamp(localStorage.getItem("tenbin.v1.savedAt")); } catch (e) { savedAt = null; }
+    return { state: value, fresh: false, notes: notes, savedAt: savedAt };
+  }
+
+  function quarantine(raw) {
+    try {
+      localStorage.setItem("tenbin.v1.quarantine", String(raw).slice(0, 200000));
+      localStorage.removeItem("tenbin.v1.state");
+    } catch (e) { /* 隔離できなくても起動は続ける */ }
+  }
+
+  /* D-5: 掟「toISOString を使わない」— 保存時刻はユーザーに「最終保存」として
+     見える値である。toISOString() は UTC に変換するため、JST 09:00 未満の保存が
+     前日の日付として表示されてしまう。ローカルの年月日時分を自前で組む。
+     形式: "YYYY-MM-DD HH:mm"(ローカル時刻)。 */
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function localStamp(d) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) +
+           " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+  /* 後方互換: 旧版が書いた ISO 文字列("…T…Z")もローカル時刻に直して読める。
+     解釈できない値はそのまま返す(表示は落とさない)。 */
+  function readStamp(raw) {
+    if (typeof raw !== "string" || raw === "") { return null; }
+    if (raw.indexOf("T") === -1) { return raw; }   // 既に新形式
+    var t = Date.parse(raw);
+    if (!isFinite(t)) { return raw; }
+    return localStamp(new Date(t));
+  }
+
+  function writeNow(state) {
+    if (!probe()) { notify("保存できません"); return; }
+    try {
+      localStorage.setItem("tenbin.v1.state", JSON.stringify(state));
+      localStorage.setItem("tenbin.v1.savedAt", localStamp(new Date()));
+      notify("保存しました");
+    } catch (e) {
+      notify("保存できません");
+    }
+  }
+
+  /** immediate=true(change 確定・追加削除・全消去)は即時に書く。 */
+  function save(state, immediate) {
+    pending = state;
+    if (timer) { clearTimeout(timer); timer = 0; }
+    if (immediate === true) {
+      writeNow(pending);
+      pending = null;
+      return;
+    }
+    timer = setTimeout(function () {
+      timer = 0;
+      if (pending !== null) { writeNow(pending); pending = null; }
+    }, SAVE_DEBOUNCE_MS);
+  }
+
+  function flush() {
+    if (timer) { clearTimeout(timer); timer = 0; }
+    if (pending !== null) { writeNow(pending); pending = null; }
+  }
+
+  /** AC-22: "tenbin.v1." 前置の全キーを走査して消す。他の名前空間には触れない。 */
+  function clearAll() {
+    if (timer) { clearTimeout(timer); timer = 0; }
+    pending = null;
+    if (!probe()) { return 0; }
+    var doomed = [];
+    try {
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (typeof k === "string" && k.indexOf(PREFIX) === 0) { doomed.push(k); }
+      }
+      for (var j = 0; j < doomed.length; j++) { localStorage.removeItem(doomed[j]); }
+    } catch (e) { /* 消せない場合も UI は初期化する */ }
+    return doomed.length;
+  }
+
+  function isAvailable() { return probe(); }
+
+  return {
+    load: load, save: save, flush: flush, clearAll: clearAll,
+    isAvailable: isAvailable, onStatus: onStatus, PREFIX: PREFIX
+  };
+})();
+</script>
+
+<script id="tenbin-render">
+/* ═══════════════════════════════════════════════════════════════════
+   L2 レンダリング — 差分描画。toFixed を1回も呼ばない(INV-2)。
+   表示文字列は全て Analysis / fmt が既に作ったものを使う。
+   ═══════════════════════════════════════════════════════════════════ */
+var TenbinRender = (function () {
+  "use strict";
+
+  var DASH = "—";
+  var $ = function (id) { return document.getElementById(id); };
+
+  function setText(el, s) {
+    if (!el) { return; }
+    var v = (s === null || s === undefined) ? "" : String(s);
+    if (el.textContent !== v) { el.textContent = v; }
+  }
+  function show(el, on) {
+    if (!el) { return; }
+    if (on) { el.removeAttribute("hidden"); } else { el.setAttribute("hidden", ""); }
+  }
+  function cls(el, name, on) {
+    if (!el) { return; }
+    if (on) { el.classList.add(name); } else { el.classList.remove(name); }
+  }
+  /** 数直線用の位置(%)。軸は 0〜40pt 固定(ux §2-1 ④)。丸めは表示に使わない。 */
+  function axisPos(points) {
+    if (typeof points !== "number" || !isFinite(points)) { return 100; }
+    var p = points < 0 ? 0 : (points > 40 ? 40 : points);
+    return (p / 40) * 100;
+  }
+  function pctOf(v) {
+    if (typeof v !== "number" || !isFinite(v)) { return 0; }
+    var p = v * 100;
+    return p < 0 ? 0 : (p > 100 ? 100 : p);
+  }
+
+  /* ── Z1 結論帯 ────────────────────────────────────────────── */
+  function renderVerdict(vm, theta) {
+    var box = $("verdict");
+    var label = $("verdict-label");
+    var lede = $("verdict-lede");
+    var caveat = $("verdict-caveat");
+    var line = $("deltaline");
+
+    cls(box, "is-robust", false);
+    cls(box, "is-contingent", false);
+    cls(box, "is-fragile", false);
+
+    if (!vm.ok || vm.robustness === null) {
+      setText(label, vm.degenerate === "tie" ? "同点" : "まだ結論は出せません");
+      setText(lede, vm.message === null ? "" : vm.message);
+      show(caveat, false);
+      show(line, false);
+      return;
+    }
+
+    var rob = vm.robustness;
+    cls(box, "is-" + rob.label, true);
+    setText(label, rob.labelLine);
+    setText(lede, rob.verdict);
+    setText(caveat, rob.caveat === null ? "" : rob.caveat);
+    show(caveat, rob.caveat !== null);
+
+    show(line, true);
+    var axis = $("delta-axis");
+    var dot = $("delta-dot");
+    var mDelta = $("mark-delta");
+    var mTheta = $("mark-theta");
+    var thetaPts = theta * 100;
+    var tp = axisPos(thetaPts);
+    axis.style.setProperty("--theta-pos", String(tp));
+    $("axis-marks").style.setProperty("--theta-pos", String(tp));
+    setText(mTheta, "θ=" + TenbinCore.fmt.weight(theta));
+
+    if (rob.label === "robust") {
+      cls(axis, "is-robust", true);
+      show(dot, false);
+      setText(mDelta, "");
+      show(mDelta, false);
+    } else {
+      cls(axis, "is-robust", false);
+      show(dot, true);
+      show(mDelta, true);
+      var dp = axisPos(rob.deltaStar * 100);
+      axis.style.setProperty("--delta-pos", String(dp));
+      $("axis-marks").style.setProperty("--delta-pos", String(dp));
+      setText(mDelta, "Δ*=" + rob.displayDelta);
+    }
+  }
+
+  /* ── Z2 順位ストリップ ────────────────────────────────────── */
+  function renderRanking(vm) {
+    var sec = $("z2");
+    var ol = $("ranking");
+    var hasRows = vm.ranking.length > 0 || vm.excluded.length > 0;
+    show(sec, hasRows);
+    if (!hasRows) { return; }
+
+    setText($("d0-line"), vm.winner === null || vm.challenger === null
+      ? "" : "勝ち幅 D₀ = " + vm.displayD0 + " ポイント(" + vm.winner.name + " − " + vm.challenger.name + ")");
+
+    var tied = vm.degenerate === "tie";
+    ol.textContent = "";
+    for (var i = 0; i < vm.ranking.length; i++) {
+      var r = vm.ranking[i];
+      var li = document.createElement("li");
+      li.className = "rank-row";
+      // MAJOR-3: 順位表とグリッドで同じ根拠(L1 の highlightWinner)を使う。
+      var isWinner = (r.rank === 1 && vm.highlightWinner);
+      if (isWinner) { li.className = "rank-row is-winner"; }
+      var place = document.createElement("span");
+      place.className = "place";
+      // X-11: rank 0 は「未入力があってまだ順位が付いていない行」。
+      // 「0位」という順位は存在しないので、位ではなく状態として書く。
+      place.textContent = (vm.ranking.length < 2) ? ""
+        : (r.rank === 0 ? "未入力あり" : (tied && r.rank === 1 ? "1位タイ" : r.rank + "位"));
+      var nm = document.createElement("span");
+      nm.className = "name";
+      nm.textContent = r.name === "" ? "(名前なし)" : r.name;
+      var sc = document.createElement("span");
+      sc.className = "score";
+      sc.textContent = r.displayScore;
+      li.appendChild(place); li.appendChild(nm); li.appendChild(sc);
+      ol.appendChild(li);
+    }
+
+    var ul = $("excluded");
+    ul.textContent = "";
+    for (var e = 0; e < vm.excluded.length; e++) {
+      var x = document.createElement("li");
+      x.textContent = vm.excluded[e].exclusionText;
+      ul.appendChild(x);
+    }
+  }
+
+  /* ── Z3 基準・臨界度 ★主操作 ─────────────────────────────── */
+  /**
+   * 行要素は基準 id をキーに使い回す(D-13)。DOM の並べ替えは
+   * change / blur / ドラッグ終了時のみ(tasks §5-2 X-4 の裁定)。
+   */
+  function renderCriticality(vm, state, rows, reorder, kStarId) {
+    var ol = $("criticality");
+    var maxAbs = 0;
+    for (var m = 0; m < rows.length; m++) {
+      if (rows[m].crit && !rows[m].crit.infeasible) {
+        var av = Math.abs(rows[m].crit.delta);
+        if (av > maxAbs) { maxAbs = av; }
+      }
+    }
+
+    for (var i = 0; i < rows.length; i++) {
+      var row = rows[i];
+      var el = row.el;
+      var c = row.criterion;
+      var k = row.crit;              // criticality 行(無い場合 null)
+      var wv = row.weightView;       // analysis.weights の該当行
+
+      el.querySelector(".idx").textContent = String(i + 1);
+      var nameInput = el.querySelector(".cname");
+      if (document.activeElement !== nameInput && nameInput.value !== c.name) { nameInput.value = c.name; }
+      nameInput.setAttribute("aria-label", "基準の名前");
+
+      var dir = el.querySelector(".dir-toggle");
+      var isCost = c.direction === "cost";
+      dir.textContent = isCost ? "↓ 低いほど良い" : "↑ 高いほど良い";
+      dir.setAttribute("aria-label", (c.name === "" ? "基準" : c.name) + "の向き。現在 " + (isCost ? "低いほど良い" : "高いほど良い") + "。押すと切り替わります");
+
+      var wPct = pctOf(wv ? wv.weight : 0);
+      var dispW = wv ? wv.displayWeight : DASH;
+
+      var rail = el.querySelector(".rail");
+      if (document.activeElement !== rail && !row.dragging) {
+        var target = String(Math.round(wPct * 10) / 10);
+        if (rail.value !== target) { rail.value = target; }
+      }
+      rail.setAttribute("aria-label", (c.name === "" ? "基準" : c.name) + "の重み");
+      rail.setAttribute("aria-valuetext", dispW + "パーセント");
+      // D-4: 空文字の aria-describedby は不正な参照として扱われうる。属性ごと外す。
+      rail.removeAttribute("aria-describedby");
+
+      var num = el.querySelector(".weight-num");
+      if (document.activeElement !== num) {
+        if (num.value !== dispW) { num.value = dispW; }
+      }
+      num.setAttribute("aria-label", (c.name === "" ? "基準" : c.name) + "の重み(パーセント)");
+
+      var bar = el.querySelector(".weight-bar");
+      bar.style.setProperty("--w", String(wPct));
+      var dominant = (k === null) || k.infeasible;
+      cls(bar, "is-dominant", dominant);
+      cls(el, "is-dominant", dominant);
+      var isCrit = (k !== null && !k.infeasible && kStarId !== null && k.criterionId === kStarId);
+      cls(bar, "is-critical", isCrit);
+      cls(el, "is-critical", isCrit);
+
+      var zoneA = el.querySelector(".zone-a");
+      var zoneB = el.querySelector(".zone-b");
+      var critLine = el.querySelector(".crit-line");
+      var reason = el.querySelector(".crit-reason");
+      var toBtn = el.querySelector(".to-threshold");
+      var cbTrack = el.querySelector(".critbar .track > i");
+      var cbVal = el.querySelector(".critbar .val");
+      var cbMost = el.querySelector(".critbar .most");
+
+      if (k === null) {
+        bar.style.setProperty("--threshold", "0");
+        el.querySelector(".zones").style.setProperty("--threshold", "0");
+        setText(critLine, "現在 " + dispW + "%");
+        setText(reason, "結論が出ていないため、逆転閾値は計算できません。");
+        setText(zoneA, "");
+        setText(zoneB, "");
+        toBtn.textContent = "閾値へ";
+        toBtn.disabled = true;
+        cbTrack.parentNode.parentNode.style.setProperty("--c", "0");
+        setText(cbVal, DASH);
+        setText(cbMost, "");
+      } else if (k.infeasible) {
+        bar.style.setProperty("--threshold", "0");
+        el.querySelector(".zones").style.setProperty("--threshold", "0");
+        setText(critLine, "現在 " + dispW + "% — 逆転不能");
+        setText(reason, k.text);
+        setText(zoneA, "");
+        setText(zoneB, "どこへ動かしても " + (vm.winner ? vm.winner.name : "") + " が1位");
+        toBtn.textContent = "逆転不能";
+        toBtn.disabled = true;
+        setText(cbVal, DASH + "(逆転不能)");
+        cbTrack.style.setProperty("--c", "0");
+        setText(cbMost, "");
+      } else {
+        var thr = pctOf(k.wStar);
+        bar.style.setProperty("--threshold", String(thr));
+        el.querySelector(".zones").style.setProperty("--threshold", String(thr));
+        setText(critLine, k.text);
+        setText(reason, "");
+        var up = k.delta > 0;
+        var wname = vm.winner ? vm.winner.name : "";
+        var oname = k.opponentName === null ? "" : k.opponentName;
+        setText(zoneA, "ここまで " + (up ? wname : oname) + " が1位");
+        setText(zoneB, "ここから " + (up ? oname : wname) + " が1位");
+        toBtn.textContent = k.displayWStar + "% へ";
+        toBtn.disabled = false;
+        toBtn.setAttribute("aria-label",
+          (c.name === "" ? "基準" : c.name) + "の重みを " + k.displayWStar +
+          " パーセントにする。" + oname + " と同点になります");
+        var ratio = maxAbs > 0 ? (Math.abs(k.delta) / maxAbs) * 100 : 0;
+        cbTrack.style.setProperty("--c", String(ratio));
+        setText(cbVal, k.displayDelta + "pt");
+        setText(cbMost, i === 0 ? "← 最も浅い" : "");
+      }
+
+      var cutoff = el.querySelector(".cutoff");
+      if (document.activeElement !== cutoff) {
+        cutoff.value = (typeof c.cutoff === "number" && isFinite(c.cutoff)) ? String(c.cutoff) : "";
+      }
+    }
+
+    if (reorder) {
+      for (var r2 = 0; r2 < rows.length; r2++) { ol.appendChild(rows[r2].el); }
+    }
+  }
+
+  /* ── Z4 貢献度 ────────────────────────────────────────────── */
+  function renderContrib(vm) {
+    var sec = $("z4");
+    var on = vm.ok && vm.winContrib.length > 0;
+    show(sec, on || (vm.ranking.length >= 2 && vm.degenerate === "tie"));
+    if (!on) {
+      $("gbars").textContent = "";
+      setText($("g-cross"), vm.degenerate === "tie" ? vm.message : "");
+      show($("h100-line"), false);
+      renderStacks(vm);
+      return;
+    }
+    show($("h100-line"), true);
+
+    var scale = 1;
+    for (var i = 0; i < vm.winContrib.length; i++) {
+      var av = Math.abs(vm.winContrib[i].value);
+      if (isFinite(av) && av > scale) { scale = av; }
+    }
+
+    var box = $("gbars");
+    box.textContent = "";
+    var tpl = $("tpl-contrib-row");
+    var crossed = [];
+    for (var j = 0; j < vm.winContrib.length; j++) {
+      var g = vm.winContrib[j];
+      var node = tpl.content.firstElementChild.cloneNode(true);
+      node.querySelector(".n").textContent = g.name;
+      node.querySelector(".v").textContent = g.display + "%";
+      var v = g.value;
+      var half = 50 / scale;
+      var left = 50 + (v < 0 ? v * half : 0);
+      var width = Math.abs(v) * half;
+      var seg = node.querySelector(".seg");
+      seg.style.setProperty("--gl", String(left));
+      seg.style.setProperty("--gw", String(width));
+      if (g.negative) { node.classList.add("is-neg"); }
+      // BLOCKER-1: 実行可能性の判定は L1 が確定させたものを使う(INV-2 / E-4 と同一 EPS)。
+      if (g.crossesUnity === true) { node.classList.add("crosses"); crossed.push(g.name); }
+      node.querySelector(".axis0").setAttribute("aria-hidden", "true");
+      box.appendChild(node);
+    }
+
+    var h100 = 50 + (50 / scale);
+    $("h100-line").style.setProperty("--h100", String(h100));
+    var gaxis = $("gaxis");
+    gaxis.textContent = "";
+    var marks = [0, 50, h100, 100];
+    for (var m = 0; m < marks.length; m++) {
+      var mk = document.createElement("i");
+      mk.className = m === 2 ? "m h100" : "m";
+      mk.style.setProperty("--p", String(marks[m]));
+      gaxis.appendChild(mk);
+    }
+    gaxis.setAttribute("aria-hidden", "true");
+
+    setText($("g-cross"), crossed.length > 0
+      ? "この線を越えた基準は、それ単独で結論をひっくり返せます。→ " + crossed.join("、")
+      : "100% の線を越えた基準はありません。");
+
+    renderStacks(vm);
+  }
+
+  function renderStacks(vm) {
+    var box = $("stacks");
+    box.textContent = "";
+    for (var i = 0; i < vm.ranking.length; i++) {
+      var r = vm.ranking[i];
+      var wrap = document.createElement("div");
+      wrap.className = "stack";
+      var who = document.createElement("p");
+      who.className = "who";
+      who.textContent = r.name === "" ? "(名前なし)" : r.name;
+      var bar = document.createElement("div");
+      bar.className = "bar";
+      bar.setAttribute("aria-hidden", "true");
+      var parts = [];
+      var empty = true;
+      for (var j = 0; j < r.contribution.length; j++) {
+        var c = r.contribution[j];
+        if (c.value === null) {
+          parts.push(c.name + " " + DASH);
+          continue;
+        }
+        empty = false;
+        var seg = document.createElement("i");
+        seg.style.setProperty("--p", String(pctOf(c.value)));
+        bar.appendChild(seg);
+        parts.push(c.name + " " + c.display + "%");
+      }
+      var pl = document.createElement("p");
+      pl.className = "parts";
+      pl.textContent = empty ? "S = 0.0 のため内訳を出せません" : parts.join("  ") + "  合計 100%";
+      if (empty) { pl.setAttribute("aria-label", "内訳を出せません"); }
+      wrap.appendChild(who); wrap.appendChild(bar); wrap.appendChild(pl);
+      box.appendChild(wrap);
+    }
+  }
+
+  /* ── Z5 重みの動き ────────────────────────────────────────── */
+  function renderWeights(vm, state) {
+    var sec = $("z5");
+    var ol = $("weight-history");
+    ol.textContent = "";
+    var any = false;
+    for (var j = 0; j < vm.weights.length; j++) {
+      var w = vm.weights[j];
+      if (w.displayInitial === null) { continue; }
+      any = true;
+      var li = document.createElement("li");
+      li.textContent = TenbinCore.TEXT.initialWeightLine(w.name, w.displayInitial, w.displayWeight);
+      ol.appendChild(li);
+    }
+    var warn = $("anchor-warn");
+    var warned = vm.anchoring.warn === true && vm.anchoring.message !== null;
+    setText(warn, warned ? vm.anchoring.message : "");
+    show(warn, warned);
+    show(sec, any || warned);
+  }
+
+  /* ── Z6 採点グリッド ──────────────────────────────────────── */
+  /**
+   * D-11 / D-12: DOM を作り直すのは「構造が変わったとき」だけ。
+   * 打鍵のたびに <input> を作り直すとフォーカスと変換中の文字が飛ぶ。
+   * 構造シグネチャ(選択肢 id 列 × 基準 id 列)が同じ間は値だけを差分更新する。
+   */
+  function gridSignature(state) {
+    var o = [], c = [];
+    for (var i = 0; i < state.options.length; i++) { o.push(state.options[i].id); }
+    for (var j = 0; j < state.criteria.length; j++) { c.push(state.criteria[j].id); }
+    return o.join(",") + "/" + c.join(",");
+  }
+
+  function buildGrid(state) {
+    var head = $("grid-head");
+    var body = $("grid-body");
+    head.textContent = "";
+    var corner = document.createElement("th");
+    corner.setAttribute("scope", "col");
+    corner.className = "corner";
+    corner.textContent = "選択肢 \\ 基準";
+    head.appendChild(corner);
+
+    for (var j = 0; j < state.criteria.length; j++) {
+      var th = document.createElement("th");
+      th.setAttribute("scope", "col");
+      th.setAttribute("data-crit", state.criteria[j].id);
+      var nm = document.createElement("span");
+      nm.className = "cn";
+      th.appendChild(nm);
+      var d = document.createElement("span");
+      d.className = "dir";
+      th.appendChild(d);
+      head.appendChild(th);
+    }
+
+    body.textContent = "";
+    for (var i = 0; i < state.options.length; i++) {
+      var o = state.options[i];
+      var tr = document.createElement("tr");
+      tr.setAttribute("data-opt", o.id);
+      var rh = document.createElement("th");
+      rh.setAttribute("scope", "row");
+      var nin = document.createElement("input");
+      nin.type = "text";
+      nin.className = "oname";
+      nin.setAttribute("aria-label", "選択肢の名前");
+      nin.setAttribute("data-opt", o.id);
+      rh.appendChild(nin);
+      var del = document.createElement("button");
+      del.type = "button";
+      del.className = "del-opt";
+      del.textContent = "削除";
+      del.setAttribute("data-opt", o.id);
+      rh.appendChild(del);
+      tr.appendChild(rh);
+
+      for (var k = 0; k < state.criteria.length; k++) {
+        var cr = state.criteria[k];
+        var td = document.createElement("td");
+        td.setAttribute("data-crit", cr.id);
+        var inp = document.createElement("input");
+        inp.type = "number";
+        inp.min = "0";
+        inp.max = "10";
+        inp.step = "0.5";
+        inp.className = "cell";
+        inp.setAttribute("data-opt", o.id);
+        inp.setAttribute("data-crit", cr.id);
+        var gid = "g-" + o.id + "-" + cr.id;
+        inp.setAttribute("aria-describedby", gid);
+        var ghost = document.createElement("span");
+        ghost.className = "ghost";
+        ghost.id = gid;
+        td.appendChild(inp);
+        td.appendChild(ghost);
+        tr.appendChild(td);
+      }
+      body.appendChild(tr);
+    }
+  }
+
+  var gridSig = null;
+
+  function renderGrid(state, vm) {
+    var sig = gridSignature(state);
+    if (sig !== gridSig) { buildGrid(state); gridSig = sig; }
+
+    var head = $("grid-head");
+    var body = $("grid-body");
+
+    for (var j = 0; j < state.criteria.length; j++) {
+      var c = state.criteria[j];
+      var th = head.children[j + 1];
+      if (!th) { continue; }
+      setText(th.querySelector(".cn"), c.name === "" ? "(名前なし)" : c.name);
+      setText(th.querySelector(".dir"), c.direction === "cost" ? "↓ 低いほど良い" : "↑ 高いほど良い");
+    }
+
+    // MAJOR-3: 勝者ハイライトの可否は L1 の highlightWinner を単一の根拠にする。
+    var winnerId = vm.highlightWinner ? vm.winner.id : null;
+    for (var i = 0; i < state.options.length; i++) {
+      var o = state.options[i];
+      var tr = body.children[i];
+      if (!tr) { continue; }
+      cls(tr, "is-winner", o.id === winnerId);
+
+      var nin = tr.querySelector(".oname");
+      if (document.activeElement !== nin && nin.value !== o.name) { nin.value = o.name; }
+      var del = tr.querySelector(".del-opt");
+      del.setAttribute("aria-label", (o.name === "" ? "この選択肢" : o.name) + "を削除");
+
+      for (var k = 0; k < state.criteria.length; k++) {
+        var cr = state.criteria[k];
+        var td = tr.children[k + 1];
+        if (!td) { continue; }
+        td.setAttribute("data-label", cr.name === "" ? "(名前なし)" : cr.name);
+        var inp = td.querySelector("input.cell");
+        var raw = o.scores[cr.id];
+        var want = (typeof raw === "number" && isFinite(raw)) ? String(raw) : "";
+        // 入力中のセルは書き戻さない(打鍵とIME変換を壊さない)
+        if (document.activeElement !== inp && inp.value !== want) { inp.value = want; }
+        inp.setAttribute("aria-label",
+          (o.name === "" ? "この選択肢" : o.name) + "の" +
+          (cr.name === "" ? "この基準" : cr.name) + "のスコア" +
+          (cr.direction === "cost" ? "、低いほど良い" : ""));
+        var nv = TenbinCore.normalize(typeof raw === "number" ? raw : null, cr.direction);
+        // D-2 / MINOR-1: ゴーストは AC-14 の 0-10 尺度で出す。最低ライン欄(0-10)と尺度を揃える。
+        setText(td.querySelector(".ghost"), (nv === null) ? "未入力" : "変換後 " + TenbinCore.fmt.score10(nv));
+      }
+    }
+  }
+
+  /* ── 警告帯 ───────────────────────────────────────────────── */
+  function renderWarnings(vm, state) {
+    var wc = "", wo = "";
+    for (var i = 0; i < vm.warnings.length; i++) {
+      var m = vm.warnings[i];
+      if (m === TenbinCore.TEXT.warnManyCriteria) { wc = m; }
+      else if (m === TenbinCore.TEXT.warnManyOptions) { wo = m; }
+      else { wc = wc === "" ? m : wc; }
+    }
+    setText($("warn-crit"), wc);
+    setText($("warn-opt"), wo);
+    setText($("crit-limit"), state.criteria.length >= 10 ? "基準は 10 個までです。" : "");
+    setText($("opt-limit"), state.options.length >= 10 ? "選択肢は 10 件までです。" : "");
+    $("add-crit").disabled = state.criteria.length >= 10;
+    $("add-opt").disabled = state.options.length >= 10;
+  }
+
+  function renderLive(text) {
+    var el = $("verdict-live");
+    if (el.textContent !== text) { el.textContent = text; }
+  }
+
+  return {
+    renderVerdict: renderVerdict,
+    renderRanking: renderRanking,
+    renderCriticality: renderCriticality,
+    renderContrib: renderContrib,
+    renderWeights: renderWeights,
+    renderGrid: renderGrid,
+    renderWarnings: renderWarnings,
+    renderLive: renderLive,
+    show: show
+  };
+})();
+</script>
+
+<script id="tenbin-store">
+/* ═══════════════════════════════════════════════════════════════════
+   L3 状態管理・起動 — AppState の単一保持、コマンド、イベント、描画駆動
+   ここだけが Date を読む(履歴の採取)。
+   ═══════════════════════════════════════════════════════════════════ */
+(function () {
+  "use strict";
+
+  // aria-live のデバウンス。
+  // 経験則。理論的裏付けを持たない(design.md §6-5 / ux.md §6-4)。
+  // tasks.md §5-2 X-2 の裁定により ux.md の 700ms を採る。
+  var ARIA_LIVE_DEBOUNCE_MS = 700;
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var state = TenbinCore.createInitialState();
+  var analysis = null;
+  var rowEls = {};        // criterionId -> <li>
+  var undoStack = {};     // criterionId -> 直前の rawWeight ベクトル
+  var idSeq = { c: 0, o: 0 };
+  var needsReorder = true;
+  var rafToken = 0;
+  var liveTimer = 0;
+  var lastLive = "";
+  // MINOR-2: モード遷移は「直前の vm.ok」で判定する。文言に "—" が入っているかで
+  // 状態を推定すると、TEXT を1文字変えた瞬間に分岐が静かに逆転する。
+  var lastLiveOk = null;
+  var lastLeader = null;
+  var dragging = null;
+
+  /* ── id 採番(復元時は既存 id から続きを振る)────────────── */
+  function bumpSeq() {
+    var i, n;
+    for (i = 0; i < state.criteria.length; i++) {
+      n = parseInt(String(state.criteria[i].id).replace(/^\D+/, ""), 10);
+      if (isFinite(n) && n > idSeq.c) { idSeq.c = n; }
+    }
+    for (i = 0; i < state.options.length; i++) {
+      n = parseInt(String(state.options[i].id).replace(/^\D+/, ""), 10);
+      if (isFinite(n) && n > idSeq.o) { idSeq.o = n; }
+    }
+  }
+  function newCritId() { idSeq.c++; return "c" + idSeq.c; }
+  function newOptId() { idSeq.o++; return "o" + idSeq.o; }
+
+  /* ── 重みの読み書き ──────────────────────────────────────── */
+  function normWeights() {
+    var raws = [];
+    for (var j = 0; j < state.criteria.length; j++) { raws.push(state.criteria[j].rawWeight); }
+    return TenbinCore.normalizeWeights(raws);
+  }
+  /** 比例再正規化(core.reweight と同一の写像)で基準 k の重みを x にする。 */
+  function setWeight(k, x) {
+    var w = normWeights();
+    var next = TenbinCore.reweight(w, k, x);
+    for (var j = 0; j < state.criteria.length; j++) {
+      state.criteria[j].rawWeight = next[j] * 100;
+    }
+  }
+  function snapshotRaw() {
+    var out = [];
+    for (var j = 0; j < state.criteria.length; j++) { out.push(state.criteria[j].rawWeight); }
+    return out;
+  }
+  function restoreRaw(vec) {
+    for (var j = 0; j < state.criteria.length && j < vec.length; j++) {
+      state.criteria[j].rawWeight = vec[j];
+    }
+  }
+  /** w⁰ を1度だけ記録する(prd §5-4 の並記に使う)。 */
+  function captureInitialWeights() {
+    if (state.initialWeights !== null || state.criteria.length === 0) { return; }
+    var w = normWeights();
+    var rec = {};
+    for (var j = 0; j < state.criteria.length; j++) { rec[state.criteria[j].id] = w[j]; }
+    state.initialWeights = rec;
+  }
+  function currentLeader() {
+    var vm = TenbinCore.analyze(state);
+    return (vm.winner && vm.winner.id) ? vm.winner.id : null;
+  }
+  /** FR-18: 重み編集を1件の履歴として残す。ここだけが時計を読む。 */
+  function recordWeightEdit(criterion, before, after, leaderBefore) {
+    state.history.push({
+      at: Date.now(),
+      criterionId: criterion.id,
+      criterionName: criterion.name,
+      before: before,
+      after: after,
+      leaderBefore: leaderBefore,
+      leaderAfter: currentLeader()
+    });
+    if (state.history.length > 500) { state.history.splice(0, state.history.length - 500); }
+  }
+
+  /* ── 描画の駆動 ──────────────────────────────────────────── */
+  function schedule(opts) {
+    if (opts && opts.reorder) { needsReorder = true; }
+    if (rafToken) { return; }
+    rafToken = requestAnimationFrame(function () {
+      rafToken = 0;
+      draw();
+    });
+  }
+
+  function ensureRows() {
+    var ol = $("criticality");
+    var seen = {};
+    for (var j = 0; j < state.criteria.length; j++) {
+      var c = state.criteria[j];
+      seen[c.id] = true;
+      if (!rowEls[c.id]) {
+        var el = $("tpl-crit-row").content.firstElementChild.cloneNode(true);
+        el.setAttribute("data-crit", c.id);
+        bindRow(el, c.id);
+        rowEls[c.id] = el;
+        ol.appendChild(el);
+        needsReorder = true;
+      }
+    }
+    for (var id in rowEls) {
+      if (Object.prototype.hasOwnProperty.call(rowEls, id) && !seen[id]) {
+        if (rowEls[id].parentNode) { rowEls[id].parentNode.removeChild(rowEls[id]); }
+        delete rowEls[id];
+        needsReorder = true;
+      }
+    }
+  }
+
+  function critById(id) {
+    for (var j = 0; j < state.criteria.length; j++) {
+      if (state.criteria[j].id === id) { return state.criteria[j]; }
+    }
+    return null;
+  }
+  function critIndex(id) {
+    for (var j = 0; j < state.criteria.length; j++) {
+      if (state.criteria[j].id === id) { return j; }
+    }
+    return -1;
+  }
+
+  function draw() {
+    analysis = TenbinCore.analyze(state);
+    var vm = analysis;
+    var theta = state.settings.theta;
+
+    TenbinRender.renderVerdict(vm, theta);
+    TenbinRender.renderRanking(vm);
+
+    // Z3 の行データを組む。criticality の並びがあればそれを使う(昇順・逆転不能は末尾)。
+    ensureRows();
+    var order = [];
+    var used = {};
+    var i, c;
+    for (i = 0; i < vm.criticality.length; i++) {
+      c = critById(vm.criticality[i].criterionId);
+      if (c === null) { continue; }
+      used[c.id] = true;
+      order.push({ criterion: c, crit: vm.criticality[i], el: rowEls[c.id],
+                   weightView: findWeight(vm, c.id), dragging: dragging === c.id });
+    }
+    for (i = 0; i < state.criteria.length; i++) {
+      c = state.criteria[i];
+      if (used[c.id]) { continue; }
+      order.push({ criterion: c, crit: null, el: rowEls[c.id],
+                   weightView: findWeight(vm, c.id), dragging: dragging === c.id });
+    }
+    var kStarId = (vm.robustness && vm.robustness.kStarId !== undefined) ? vm.robustness.kStarId : null;
+    var reorder = needsReorder && dragging === null;
+    TenbinRender.renderCriticality(vm, state, order, reorder, kStarId);
+    if (reorder) { needsReorder = false; }
+    TenbinRender.show($("z3"), true);
+
+    renderChallengerSelect(vm);
+    TenbinRender.renderContrib(vm);
+    TenbinRender.renderWeights(vm, state);
+    TenbinRender.renderGrid(state, vm);
+    TenbinRender.renderWarnings(vm, state);
+
+    scheduleLive(vm);
+  }
+
+  function findWeight(vm, id) {
+    for (var j = 0; j < vm.weights.length; j++) {
+      if (vm.weights[j].criterionId === id) { return vm.weights[j]; }
+    }
+    return null;
+  }
+
+  function renderChallengerSelect(vm) {
+    var sel = $("challenger");
+    var opts = [];
+    for (var i = 0; i < vm.ranking.length; i++) {
+      if (vm.winner && vm.ranking[i].id === vm.winner.id) { continue; }
+      opts.push(vm.ranking[i]);
+    }
+    var sig = opts.map(function (o) { return o.id + ":" + o.name; }).join("|");
+    if (sel.getAttribute("data-sig") !== sig) {
+      sel.textContent = "";
+      for (var j = 0; j < opts.length; j++) {
+        var op = document.createElement("option");
+        op.value = opts[j].id;
+        op.textContent = opts[j].name === "" ? "(名前なし)" : opts[j].name;
+        sel.appendChild(op);
+      }
+      sel.setAttribute("data-sig", sig);
+    }
+    if (vm.challenger && sel.value !== vm.challenger.id) { sel.value = vm.challenger.id; }
+  }
+
+  /**
+   * ux §6-4: 連続操作中は無言。手が止まってから結論を1回だけ読ませる。
+   * モードの変化(結論あり ↔ 空状態/同点)は待たずに発火する。
+   */
+  function scheduleLive(vm) {
+    var text = "";
+    if (vm.ok && vm.robustness !== null) {
+      text = vm.robustness.labelLine + " " + vm.robustness.verdict +
+        (vm.robustness.caveat === null ? "" : " " + vm.robustness.caveat);
+    } else {
+      text = vm.message === null ? "" : vm.message;
+    }
+    if (text === lastLive) { return; }
+    var modeChanged = (lastLiveOk !== null && lastLiveOk !== vm.ok);
+    if (liveTimer) { clearTimeout(liveTimer); liveTimer = 0; }
+    var fire = function () {
+      liveTimer = 0;
+      lastLive = text;
+      lastLiveOk = vm.ok;
+      TenbinRender.renderLive(text);
+    };
+    if (modeChanged && !vm.ok) { fire(); return; }
+    liveTimer = setTimeout(fire, ARIA_LIVE_DEBOUNCE_MS);
+  }
+
+  /* ── 保存 ────────────────────────────────────────────────── */
+  function persist(immediate) { TenbinPersist.save(state, immediate === true); }
+  function commit(immediate, opts) {
+    schedule(opts);
+    persist(immediate);
+  }
+
+  /* ── 行のイベント束ね ────────────────────────────────────── */
+  function bindRow(el, cid) {
+    var rail = el.querySelector(".rail");
+    var num = el.querySelector(".weight-num");
+    var name = el.querySelector(".cname");
+    var dir = el.querySelector(".dir-toggle");
+    var toBtn = el.querySelector(".to-threshold");
+    var undo = el.querySelector(".undo");
+    var more = el.querySelector(".more-toggle");
+    var moreBox = el.querySelector(".crit-more");
+    var cutoff = el.querySelector(".cutoff");
+    var cutClear = el.querySelector(".cutoff-clear");
+    var delBtn = el.querySelector(".del-crit");
+
+    var pendingBefore = null;
+    var pendingLeader = null;
+
+    function beginEdit() {
+      var k = critIndex(cid);
+      if (k < 0) { return; }
+      if (pendingBefore === null) {
+        pendingBefore = normWeights()[k];
+        pendingLeader = currentLeader();
+      }
+    }
+    function endEdit() {
+      var k = critIndex(cid);
+      var c = critById(cid);
+      if (k < 0 || c === null || pendingBefore === null) { pendingBefore = null; return; }
+      var after = normWeights()[k];
+      if (Math.abs(after - pendingBefore) > TenbinCore.EPS) {
+        recordWeightEdit(c, pendingBefore, after, pendingLeader);
+      }
+      pendingBefore = null;
+      pendingLeader = null;
+    }
+
+    rail.addEventListener("pointerdown", function () { dragging = cid; });
+    rail.addEventListener("focus", function () { beginEdit(); });
+    rail.addEventListener("input", function () {
+      var k = critIndex(cid);
+      if (k < 0) { return; }
+      beginEdit();
+      captureInitialWeights();
+      var pct = parseFloat(rail.value);
+      if (!isFinite(pct)) { return; }
+      setWeight(k, Math.max(0, Math.min(100, pct)) / 100);
+      commit(false);
+    });
+    var finishDrag = function () {
+      if (dragging === cid) { dragging = null; }
+      endEdit();
+      commit(true, { reorder: true });
+    };
+    rail.addEventListener("change", finishDrag);
+    rail.addEventListener("pointerup", function () { dragging = null; schedule({ reorder: true }); });
+    rail.addEventListener("blur", function () { dragging = null; endEdit(); commit(true, { reorder: true }); });
+
+    num.addEventListener("change", function () {
+      var k = critIndex(cid);
+      if (k < 0) { return; }
+      var v = parseFloat(num.value);
+      if (!isFinite(v)) { schedule(); return; }
+      beginEdit();
+      captureInitialWeights();
+      setWeight(k, Math.max(0, Math.min(100, v)) / 100);
+      endEdit();
+      commit(true, { reorder: true });
+    });
+
+    name.addEventListener("input", function () {
+      var c = critById(cid);
+      if (c === null) { return; }
+      c.name = name.value.slice(0, 200);
+      commit(false);
+    });
+    name.addEventListener("change", function () { commit(true); });
+
+    dir.addEventListener("click", function () {
+      var c = critById(cid);
+      if (c === null) { return; }
+      c.direction = (c.direction === "cost") ? "benefit" : "cost";
+      commit(true, { reorder: true });
+    });
+
+    toBtn.addEventListener("click", function () {
+      var k = critIndex(cid);
+      var c = critById(cid);
+      if (k < 0 || c === null || analysis === null) { return; }
+      var row = null;
+      for (var i = 0; i < analysis.criticality.length; i++) {
+        if (analysis.criticality[i].criterionId === cid) { row = analysis.criticality[i]; }
+      }
+      if (row === null || row.infeasible) { return; }
+      undoStack[cid] = snapshotRaw();
+      beginEdit();
+      captureInitialWeights();
+      // 表示値ではなく内部値 w* を使う(表示丸めで同点にならない事故を防ぐ)
+      setWeight(k, Math.max(0, Math.min(1, row.wStar)));
+      endEdit();
+      undo.removeAttribute("hidden");
+      commit(true, { reorder: true });
+    });
+
+    undo.addEventListener("click", function () {
+      if (!undoStack[cid]) { return; }
+      var c = critById(cid);
+      beginEdit();
+      restoreRaw(undoStack[cid]);
+      delete undoStack[cid];
+      // X-12 の裁定: [元に戻す] も1回の編集として記録する
+      if (c !== null) { endEdit(); }
+      undo.setAttribute("hidden", "");
+      commit(true, { reorder: true });
+    });
+
+    more.addEventListener("click", function () {
+      var open = moreBox.hasAttribute("hidden");
+      if (open) { moreBox.removeAttribute("hidden"); } else { moreBox.setAttribute("hidden", ""); }
+      more.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+
+    cutoff.addEventListener("change", function () {
+      var c = critById(cid);
+      if (c === null) { return; }
+      var v = parseFloat(cutoff.value);
+      c.cutoff = isFinite(v) ? Math.max(0, Math.min(10, v)) : null;
+      commit(true, { reorder: true });
+    });
+    cutClear.addEventListener("click", function () {
+      var c = critById(cid);
+      if (c === null) { return; }
+      c.cutoff = null;
+      commit(true, { reorder: true });
+    });
+
+    delBtn.addEventListener("click", function () {
+      var k = critIndex(cid);
+      if (k < 0) { return; }
+      state.criteria.splice(k, 1);
+      for (var i = 0; i < state.options.length; i++) { delete state.options[i].scores[cid]; }
+      state.initialWeights = null;
+      commit(true, { reorder: true });
+    });
+  }
+
+  /* ── グリッド(委譲)────────────────────────────────────── */
+  function optById(id) {
+    for (var i = 0; i < state.options.length; i++) {
+      if (state.options[i].id === id) { return state.options[i]; }
+    }
+    return null;
+  }
+
+  $("grid-body").addEventListener("input", function (ev) {
+    var t = ev.target;
+    if (t.classList.contains("cell")) {
+      var o = optById(t.getAttribute("data-opt"));
+      if (o === null) { return; }
+      var cid = t.getAttribute("data-crit");
+      var v = parseFloat(t.value);
+      if (t.value === "" || !isFinite(v)) { o.scores[cid] = null; }
+      else { o.scores[cid] = Math.max(0, Math.min(10, Math.round(v * 2) / 2)); }
+      commit(false);
+    } else if (t.classList.contains("oname")) {
+      var o2 = optById(t.getAttribute("data-opt"));
+      if (o2 === null) { return; }
+      o2.name = t.value.slice(0, 200);
+      commit(false);
+    }
+  });
+  $("grid-body").addEventListener("change", function () { commit(true); });
+  $("grid-body").addEventListener("click", function (ev) {
+    var t = ev.target;
+    if (!t.classList.contains("del-opt")) { return; }
+    var id = t.getAttribute("data-opt");
+    for (var i = 0; i < state.options.length; i++) {
+      if (state.options[i].id === id) { state.options.splice(i, 1); break; }
+    }
+    if (state.settings.challengerId === id) { state.settings.challengerId = null; }
+    commit(true, { reorder: true });
+  });
+  // Enter で下のセルへ(ux §6-1)
+  $("grid-body").addEventListener("keydown", function (ev) {
+    if (ev.key !== "Enter") { return; }
+    var t = ev.target;
+    if (!t.classList.contains("cell")) { return; }
+    ev.preventDefault();
+    var cid = t.getAttribute("data-crit");
+    var cells = $("grid-body").querySelectorAll('input.cell[data-crit="' + cid + '"]');
+    for (var i = 0; i < cells.length; i++) {
+      if (cells[i] === t && i + 1 < cells.length) { cells[i + 1].focus(); return; }
+    }
+  });
+
+  /* ── 追加ボタン ──────────────────────────────────────────── */
+  $("add-crit").addEventListener("click", function () {
+    if (state.criteria.length >= 10) { return; }
+    var id = newCritId();
+    state.criteria.push({ id: id, name: "", direction: "benefit", rawWeight: 1, cutoff: null });
+    for (var i = 0; i < state.options.length; i++) { state.options[i].scores[id] = null; }
+    state.initialWeights = null;
+    commit(true, { reorder: true });
+    var el = rowEls[id];
+    if (el) { el.querySelector(".cname").focus(); }
+  });
+
+  $("add-opt").addEventListener("click", function () {
+    if (state.options.length >= 10) { return; }
+    var id = newOptId();
+    var scores = {};
+    for (var j = 0; j < state.criteria.length; j++) { scores[state.criteria[j].id] = null; }
+    state.options.push({ id: id, name: "", scores: scores });
+    commit(true, { reorder: true });
+    var inp = $("grid-body").querySelector('input.oname[data-opt="' + id + '"]');
+    if (inp) { inp.focus(); }
+  });
+
+  /* ── 挑戦者(FR-15)──────────────────────────────────────── */
+  $("challenger").addEventListener("change", function () {
+    state.settings.challengerId = $("challenger").value || null;
+    commit(true);
+  });
+
+  /* ── θ(FR-12)────────────────────────────────────────────── */
+  function setTheta(pts) {
+    var v = isFinite(pts) ? Math.max(0, Math.min(100, pts)) : 10;
+    state.settings.theta = v / 100;
+    $("theta-num").value = String(Math.round(v * 10) / 10);
+    $("theta-range").value = String(Math.max(0, Math.min(40, v)));
+    $("theta-badge").textContent = TenbinCore.fmt.weight(state.settings.theta);
+    commit(true);
+  }
+  $("theta-num").addEventListener("change", function () { setTheta(parseFloat($("theta-num").value)); });
+  $("theta-range").addEventListener("input", function () { setTheta(parseFloat($("theta-range").value)); });
+  $("theta-minus").addEventListener("click", function () { setTheta(state.settings.theta * 100 - 1); });
+  $("theta-plus").addEventListener("click", function () { setTheta(state.settings.theta * 100 + 1); });
+
+  /* ── ポップオーバー ──────────────────────────────────────── */
+  function togglePop(btn, box, force) {
+    var open = (force === undefined) ? box.hasAttribute("hidden") : force;
+    if (open) { box.removeAttribute("hidden"); } else { box.setAttribute("hidden", ""); }
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+    return open;
+  }
+  $("btn-theta").addEventListener("click", function () { togglePop($("btn-theta"), $("pop-theta")); });
+  $("btn-theta2").addEventListener("click", function () {
+    togglePop($("btn-theta"), $("pop-theta"), true);
+    $("theta-num").focus();
+  });
+  $("btn-export").addEventListener("click", function () { togglePop($("btn-export"), $("pop-export")); });
+  document.addEventListener("keydown", function (ev) {
+    if (ev.key !== "Escape") { return; }
+    togglePop($("btn-theta"), $("pop-theta"), false);
+    togglePop($("btn-export"), $("pop-export"), false);
+    resetClear();
+  });
+
+  /* ── 全消去(2段階)─────────────────────────────────────── */
+  var clearArmed = false;
+  function resetClear() {
+    if (!clearArmed) { return; }
+    clearArmed = false;
+    $("btn-clear").textContent = "全消去";
+    $("btn-clear").classList.remove("primary");
+  }
+  $("btn-clear").addEventListener("click", function () {
+    if (!clearArmed) {
+      clearArmed = true;
+      $("btn-clear").textContent = "本当に全部消す";
+      $("btn-clear").classList.add("primary");
+      return;
+    }
+    resetClear();
+    TenbinPersist.clearAll();
+    state = TenbinCore.createInitialState();
+    for (var id in rowEls) {
+      if (Object.prototype.hasOwnProperty.call(rowEls, id) && rowEls[id].parentNode) {
+        rowEls[id].parentNode.removeChild(rowEls[id]);
+      }
+    }
+    rowEls = {};
+    undoStack = {};
+    idSeq = { c: 0, o: 0 };
+    lastLive = "";
+    lastLiveOk = null;
+    setStatus("全て消しました");
+    schedule({ reorder: true });
+  });
+
+  /* ── エクスポート(L3 の責務。コアには入れない — X-8)────── */
+  function download(name, mime, text) {
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 0);
+  }
+  function csvCell(s) {
+    var v = String(s === null || s === undefined ? "" : s);
+    // F-1: CSV インジェクション緩和。Excel/Sheets が数式として解釈する先頭文字を
+    // アポストロフィ前置で無害化する(書き出したファイルが他者に渡ったときの被害を断つ)。
+    if (/^[=+\-@\t\r]/.test(v)) { v = "'" + v; }
+    return '"' + v.replace(/"/g, '""') + '"';
+  }
+  // F-2: Markdown の表構造・文書構造インジェクション緩和。
+  // パイプを実体化し、改行を空白に潰して行の分断を防ぐ。
+  function mdCell(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/\|/g, "\\|")
+      .replace(/[\r\n]+/g, " ");
+  }
+  function buildCsv(vm) {
+    var lines = [];
+    lines.push(["選択肢", "順位", "総合スコア"].map(csvCell).join(","));
+    for (var i = 0; i < vm.ranking.length; i++) {
+      var r = vm.ranking[i];
+      lines.push([r.name, (r.rank === 0 ? DASH : r.rank), r.displayScore].map(csvCell).join(","));
+    }
+    lines.push("");
+    lines.push(["基準", "向き", "重み", "逆転する重み", "Δw", "逆転相手"].map(csvCell).join(","));
+    for (var j = 0; j < vm.criticality.length; j++) {
+      var k = vm.criticality[j];
+      var c = critById(k.criterionId);
+      lines.push([k.name, c && c.direction === "cost" ? "低いほど良い" : "高いほど良い",
+        k.displayWeight, k.displayWStar, k.displayDelta,
+        k.opponentName === null ? "—" : k.opponentName].map(csvCell).join(","));
+    }
+    lines.push("");
+    if (vm.robustness) {
+      lines.push([csvCell("頑健性"), csvCell(vm.robustness.label)].join(","));
+      lines.push([csvCell("Δ*"), csvCell(vm.robustness.displayDelta)].join(","));
+      lines.push([csvCell("k*"), csvCell(vm.robustness.kStarName === null ? "—" : vm.robustness.kStarName)].join(","));
+    }
+    return lines.join("\n");
+  }
+  function buildMd(vm) {
+    var out = [];
+    out.push("# 天秤 — 決断の記録");
+    out.push("");
+    if (vm.robustness) {
+      out.push("## 結論");
+      out.push("");
+      out.push(vm.robustness.labelLine);
+      out.push("");
+      out.push(vm.robustness.verdict);
+      if (vm.robustness.caveat !== null) { out.push(""); out.push("> " + vm.robustness.caveat); }
+    } else {
+      out.push("## 結論");
+      out.push("");
+      out.push(vm.message === null ? "" : vm.message);
+    }
+    out.push("");
+    out.push("## 順位");
+    out.push("");
+    out.push("| 順位 | 選択肢 | 総合スコア |");
+    out.push("|---|---|---|");
+    for (var i = 0; i < vm.ranking.length; i++) {
+      out.push("| " + (vm.ranking[i].rank === 0 ? DASH : vm.ranking[i].rank) + " | " + mdCell(vm.ranking[i].name) + " | " + vm.ranking[i].displayScore + " |");
+    }
+    out.push("");
+    out.push("## 基準 — 崩れやすい順");
+    out.push("");
+    out.push("| 基準 | 重み | 逆転する重み | Δw | 逆転相手 |");
+    out.push("|---|---|---|---|---|");
+    for (var j = 0; j < vm.criticality.length; j++) {
+      var k = vm.criticality[j];
+      out.push("| " + mdCell(k.name) + " | " + k.displayWeight + " | " + k.displayWStar + " | " +
+        k.displayDelta + " | " + (k.opponentName === null ? "—" : mdCell(k.opponentName)) + " |");
+    }
+    out.push("");
+    out.push("このページのデータは、あなたのブラウザにだけ保存されています。どこにも送信していません。");
+    return out.join("\n");
+  }
+  $("ex-csv").addEventListener("click", function () {
+    download("tenbin.csv", "text/csv;charset=utf-8", "\ufeff" + buildCsv(analysis));
+    setStatus("CSV を書き出しました");
+  });
+  $("ex-md").addEventListener("click", function () {
+    download("tenbin.md", "text/markdown;charset=utf-8", buildMd(analysis));
+    setStatus("Markdown を書き出しました");
+  });
+  $("ex-json").addEventListener("click", function () {
+    download("tenbin.json", "application/json", JSON.stringify({ state: state, analysis: analysis }, null, 2));
+    setStatus("JSON を書き出しました");
+  });
+
+  /* ── 状態通知 ────────────────────────────────────────────── */
+  var statusTimer = 0;
+  function setStatus(msg) {
+    $("save-status").textContent = msg;
+    if (statusTimer) { clearTimeout(statusTimer); }
+    statusTimer = setTimeout(function () { $("save-status").textContent = ""; }, 2400);
+  }
+  TenbinPersist.onStatus(setStatus);
+
+  /* ── 起動: load → migrate → validate → 初回描画 ──────────── */
+  var loaded = TenbinPersist.load();
+  state = loaded.state;
+  bumpSeq();
+
+  if (!TenbinPersist.isAvailable()) {
+    // ux §7-3 B-5: 保存できない環境では断言を差し替える(AC-25 の送信ゼロ文言は保持)
+    $("privacy").textContent = TenbinCore.TEXT.privacyNoStorage;
+  }
+  if (loaded.notes && loaded.notes.length > 0) {
+    var note = $("restore-note");
+    note.textContent = loaded.notes.join(" ");
+    note.removeAttribute("hidden");
+    TenbinRender.show($("z5"), true);
+  }
+
+  $("theta-num").value = String(Math.round(state.settings.theta * 1000) / 10);
+  $("theta-range").value = String(Math.min(40, state.settings.theta * 100));
+  $("theta-badge").textContent = TenbinCore.fmt.weight(state.settings.theta);
+
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "hidden") { TenbinPersist.flush(); }
+  });
+
+  schedule({ reorder: true });
+})();
+</script>
+</body>
+</html>

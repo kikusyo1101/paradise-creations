@@ -1,0 +1,191 @@
+{
+  "meta": {
+    "wish": "複数の選択肢を重み付き基準で採点し、どの基準が結論を支配しているかまで示す決断支援アプリ「天秤」",
+    "scale": "full",
+    "created": "2026-08-31T23:54:34.511Z",
+    "constitution": [
+      "Spec is the source of truth — code serves the spec, not the reverse.",
+      "Every phase is gated — no phase advances on unverified assumptions.",
+      "Independent work runs in parallel; dependent work runs in order.",
+      "Verification precedes judgment; judgment precedes shipping.",
+      "Evidence-based memory — only what actually happened is remembered.",
+      "No secrets in code; security is reviewed, never assumed."
+    ],
+    "gates": [
+      "discover",
+      "specify",
+      "design",
+      "verify",
+      "reflect",
+      "verdict"
+    ],
+    "produces": "artifact"
+  },
+  "tasks": [
+    {
+      "id": "discover",
+      "agent": "market-researcher",
+      "goal": "Deep market research for: 複数の選択肢を重み付き基準で採点し、どの基準が結論を支配しているかまで示す決断支援アプリ「天秤」. Study popular products, rank features by adoption, identify differentiators and unmet needs.",
+      "gate": true,
+      "artifact": "findings.md"
+    },
+    {
+      "id": "analyze",
+      "agent": "requirements-analyst",
+      "goal": "Analyze the problem space & constraints behind: 複数の選択肢を重み付き基準で採点し、どの基準が結論を支配しているかまで示す決断支援アプリ「天秤」, grounded in the findings",
+      "deps": [
+        "discover"
+      ],
+      "artifact": "analysis.md"
+    },
+    {
+      "id": "specify",
+      "agent": "requirements-analyst",
+      "goal": "Write the PRD: requirements, user stories, acceptance criteria — covering expected features from the research",
+      "deps": [
+        "analyze"
+      ],
+      "gate": true,
+      "artifact": "prd.md"
+    },
+    {
+      "id": "ux",
+      "agent": "architect",
+      "goal": "UX design: flows, screens, interaction rules",
+      "deps": [
+        "specify"
+      ],
+      "artifact": "ux.md"
+    },
+    {
+      "id": "identity",
+      "agent": "architect",
+      "goal": "Visual identity: pick ONE direction from `node graph/identity.js suggest \"<wish>\" --slug <slug>` and write identity.md (palette, type, texture, motion, do/don't). Justify the choice AND the rejections. Never default to the generic dev-tool look.",
+      "deps": [
+        "specify"
+      ],
+      "artifact": "identity.md"
+    },
+    {
+      "id": "design",
+      "agent": "architect",
+      "goal": "Basic design: system architecture & data model",
+      "deps": [
+        "specify"
+      ],
+      "gate": true,
+      "artifact": "design.md"
+    },
+    {
+      "id": "detail",
+      "agent": "architect",
+      "goal": "Detailed design: interfaces + ordered testable tasks",
+      "deps": [
+        "design",
+        "ux"
+      ],
+      "artifact": "tasks.md"
+    },
+    {
+      "id": "build",
+      "agent": "architect",
+      "goal": "Implement backend & core logic",
+      "deps": [
+        "detail"
+      ],
+      "artifact": "implementation"
+    },
+    {
+      "id": "build-ui",
+      "agent": "architect",
+      "goal": "Implement the UI against the UX design and identity.md",
+      "deps": [
+        "detail",
+        "identity"
+      ],
+      "artifact": "ui"
+    },
+    {
+      "id": "tests",
+      "agent": "tdd-guide",
+      "goal": "Test suite covering acceptance criteria",
+      "deps": [
+        "detail"
+      ],
+      "artifact": "tests"
+    },
+    {
+      "id": "review",
+      "agent": "code-reviewer",
+      "goal": "Quality review across backend & UI",
+      "deps": [
+        "build",
+        "build-ui",
+        "tests"
+      ],
+      "artifact": "review"
+    },
+    {
+      "id": "ux-review",
+      "agent": "ux-reviewer",
+      "goal": "Judge the SURFACE: run `node graph/visual-verify.js check <dir>`, confirm ux.md and identity.md were honoured, drive the real browser at narrow and wide widths in BOTH themes. Evidence must be measured or seen.",
+      "deps": [
+        "build-ui"
+      ],
+      "artifact": "ux-review.md"
+    },
+    {
+      "id": "security",
+      "agent": "security-reviewer",
+      "goal": "Security & privacy review",
+      "deps": [
+        "build",
+        "build-ui"
+      ],
+      "artifact": "security-report"
+    },
+    {
+      "id": "docs",
+      "agent": "doc-updater",
+      "goal": "Write user & developer documentation",
+      "deps": [
+        "build",
+        "build-ui"
+      ],
+      "artifact": "docs"
+    },
+    {
+      "id": "verify",
+      "agent": "verification-loop",
+      "goal": "Full verification: build/type/lint/test/coverage/security/visual",
+      "deps": [
+        "review",
+        "security",
+        "ux-review"
+      ],
+      "gate": true,
+      "artifact": "verification-report"
+    },
+    {
+      "id": "reflect",
+      "agent": "self-critic",
+      "goal": "Adversarial self-critique against PRD, findings & UX: run critic checklist + lessons. Any gap => REWORK before judgment",
+      "deps": [
+        "verify",
+        "docs"
+      ],
+      "gate": true,
+      "artifact": "critique.md"
+    },
+    {
+      "id": "verdict",
+      "agent": "creation-judge",
+      "goal": "Final judgment against PRD, findings, critique & constitution: SHIP / REWORK / BLOCK",
+      "deps": [
+        "reflect"
+      ],
+      "gate": true,
+      "artifact": "verdict"
+    }
+  ]
+}

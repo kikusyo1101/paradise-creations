@@ -1,0 +1,50 @@
+{
+  "creation": "tenbin",
+  "produces": "artifact",
+  "build": "pass",
+  "tests": {
+    "total": 55,
+    "passed": 50,
+    "failed": 0,
+    "skipped": 5,
+    "note": "node tests/tenbin.test.js — 教主が自ら実行。skip 5件は仕様上『UI位相=ブラウザ実機で検証』と明記されたもので、ux-review 位相がヘッドレス実機で判定済み"
+  },
+  "coverage": null,
+  "lint": { "status": "pass", "warnings": 0, "note": "critic.js の創造物の掟 全項目 緑 (外部依存0 / toISOString 0 / 秘密 0)。品質審査の MINOR 6件のうち MINOR-1/2/3 は修復済み、MINOR-4/5/6 は根拠付きで見送り — 教主が実測で妥当性を確認: MINOR-5 の weightsBroken は MAJOR-1 の修正(normalizeWeights の !isFinite(sum) 検査)により到達不能になっており、overflow/MAX_VALUE/Infinity/NaN/負値/極小の8ケース全てで事後条件 |Σw−1|≤EPS を維持する",
+  "note_blocker_fix": "BLOCKER-1 は症状ではなく構造を断った: L2 で g を再計算して比較するのをやめ、L1 が crossesUnity を E-4 と同一式・同一 EPS で宣言し L2 はそれを読むだけにした。同じ問いに二つの答えが存在しうる構造自体を消している。教主が実測: g=1.0000000000000002 でも crossesUnity=false、L1 の infeasible=true と一致" },
+  "types": { "status": "pass", "errors": 0, "note": "型システムなし(素の JS)。契約は CONTRACT-CORE の静的検査で担保" },
+  "security": {
+    "issues": 0,
+    "secrets": 0,
+    "note": "security.md による実機審査。致命的・高重大度ゼロ。中1件(CSVインジェクション F-1)と低1件(Markdown表構造 F-2)はいずれも修復済み — 教主が csvCell/mdCell の実装を実測確認"
+  },
+  "spec": {
+    "satisfied": true,
+    "unmet": [],
+    "note": "prd.md AC-01〜AC-26。DS-1 の全期待値(67.0/63.5/51.0、Δ=119/1740・−91/1060・49/270、サポート逆転不能、fragile)を教主が独立実装で再計算し完全一致。閉形式は有理数300試行 + テスト内500試行1962行で反例ゼロ。加えて ux.md 付録B が設計段階で提起した境界状態6件を教主が実機・実行で検証済み: localStorage 不可時はプライバシー文言が privacyNoStorage(『保存できません』)へ正しく切替わり製品が嘘をつかない、全重み0/単一基準100%(1−w_k=0)/足切り全滅/選択肢1件/上限超過のいずれもゼロ除算・NaN・Infinity・undefined の表示汚染ゼロ"
+  },
+  "trajectory": {
+    "score": 80,
+    "complete": false,
+    "phasesTotal": 17,
+    "phasesDone": 16,
+    "domainsTotal": 6,
+    "domainsRatified": 5,
+    "firstPassRate": 1.0,
+    "reworkCount": 0,
+    "retryOverhead": 0,
+    "loopGuardTrips": 0,
+    "note": "gauge.js score による実測。verdict 位相自身が未了のため complete=false"
+  },
+  "visual": {
+    "status": "pass",
+    "note": "visual-verify.js check — VISUAL: all visual checks pass。ux-review.md の軽微な指摘5件(D-1〜D-5)も全て修復済みであることを教主が実測確認: disabled ボタン文字色は --muted(3.09:1)から --muted-soft(5.49:1)へ、aria-describedby は空文字ではなく属性ごと除去、#verdict-lede は --font-display(明朝)を指定"
+  },
+  "evidence": {
+    "artifact": "C:/Users/kikus/Documents/workspace/paradise-creations/tenbin/index.html",
+    "bytes": 142332,
+    "coreBytes": 38819,
+    "externalRefs": 0,
+    "criticVerdict": "the critic found nothing. Proceed to judgment."
+  }
+}
