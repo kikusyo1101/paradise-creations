@@ -86,7 +86,7 @@
       "seq": 2,
       "cardinal": "architecture",
       "domain": "Architecture (設計)",
-      "status": "pending",
+      "status": "ratified",
       "reworks": 0,
       "phases": [
         {
@@ -138,9 +138,9 @@
           ],
           "gate": false,
           "artifact": "tasks.md",
-          "status": "pending",
-          "attempts": 0,
-          "artifactPath": null
+          "status": "done",
+          "attempts": 1,
+          "artifactPath": "../paradise-creations/tenbin/tasks.md"
         }
       ],
       "reviewClass": "cardinal:requirements",
@@ -373,6 +373,21 @@
       "ts": "2026-09-01T00:58:05.426Z",
       "event": "done",
       "detail": "design → ../paradise-creations/tenbin/design.md"
+    },
+    {
+      "ts": "2026-09-01T00:58:10.269Z",
+      "event": "dispatch",
+      "detail": "detail"
+    },
+    {
+      "ts": "2026-09-01T01:15:41.526Z",
+      "event": "done",
+      "detail": "detail → ../paradise-creations/tenbin/tasks.md"
+    },
+    {
+      "ts": "2026-09-01T01:15:41.567Z",
+      "event": "ratify",
+      "detail": "Architecture (設計) ratified by cardinal:requirements"
     }
   ]
 }
