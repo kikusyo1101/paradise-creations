@@ -72,8 +72,13 @@ jobs:
             # テストは在れば必ず走らせる。無いことは此処では裁かない
             # (掟の検査が別に効く) — 在るのに走らせない門こそが飾りである。
             found=0
+            # glob が重なると同じテストを二度走らせる(実際 tenbin.test.js が
+            # 2回走った)。走らせた実体を記録して重複を弾く。
+            ran=""
             for t in "$s"/tests/*.test.js "$s"/tests/*.js "$s"/*.test.js; do
               [ -f "$t" ] || continue
+              case " $ran " in *" $t "*) continue ;; esac
+              ran="$ran $t"
               found=1
               echo "── $t ──"
               node "$t" || fail=1
