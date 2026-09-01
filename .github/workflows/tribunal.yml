@@ -1,0 +1,132 @@
+name: Tribunal — 創造物の審査
+
+# 創造物の倉にも門を建てる (憲法 第30条 / 第21条)。
+#
+# 第30条で創造物を engine から分離したとき、門は engine 側にしか無かった。
+# 分離先に門を建てなければ、創造物は誰にも裁かれないまま main に入る —
+# 実際、天秤の PR はチェックが1つも走らない状態で開いていた。
+#
+# この門は **その PR が触った創造物だけ** を裁く。既存の創造物を遡って
+# 落とさないのは、赤が常態化した門は無視されるようになるからである
+# (第21条: 無視される門は、無い門より悪い)。新しい仕事には厳格に効く。
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  judge:
+    name: 創造物ゲート (tests / laws / secrets)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: 🔎 触られた創造物を特定する
+        id: scope
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+            git fetch --quiet origin "${{ github.base_ref }}"
+            changed=$(git diff --name-only "$base"...HEAD)
+          else
+            changed=$(git diff --name-only HEAD~1..HEAD || git ls-files)
+          fi
+          # トップ階層のディレクトリ名 = 創造物の slug。_scratch と隠しは除く。
+          slugs=$(echo "$changed" | awk -F/ 'NF>1 {print $1}' | sort -u \
+                  | grep -vE '^(_scratch|\.github|\.git)$' || true)
+          # ディレクトリとして実在するものだけ残す
+          keep=""
+          for s in $slugs; do [ -d "$s" ] && keep="$keep $s"; done
+          keep=$(echo $keep | xargs || true)
+          echo "slugs=$keep" >> "$GITHUB_OUTPUT"
+          if [ -z "$keep" ]; then
+            echo "触られた創造物なし — 門は通す"
+          else
+            echo "審査対象: $keep"
+          fi
+
+      - name: 🔒 Secret scan — 秘密情報の混入検査
+        run: |
+          if grep -rIn -E "sk-[a-zA-Z0-9]{20,}|gh[pou]_[a-zA-Z0-9]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----" \
+               --exclude-dir=.git --exclude-dir=node_modules . ; then
+            echo "::error::potential secret detected — BLOCK (憲法 第5条)"
+            exit 1
+          fi
+          echo "no secrets detected"
+
+      - name: ⚖️ 創造物の自己テストを走らせる
+        run: |
+          slugs="${{ steps.scope.outputs.slugs }}"
+          [ -z "$slugs" ] && { echo "対象なし"; exit 0; }
+          fail=0
+          for s in $slugs; do
+            # テストは在れば必ず走らせる。無いことは此処では裁かない
+            # (掟の検査が別に効く) — 在るのに走らせない門こそが飾りである。
+            found=0
+            for t in "$s"/tests/*.test.js "$s"/tests/*.js "$s"/*.test.js; do
+              [ -f "$t" ] || continue
+              found=1
+              echo "── $t ──"
+              node "$t" || fail=1
+            done
+            [ "$found" -eq 0 ] && echo "  ($s: テストファイル無し — スキップ)"
+          done
+          test "$fail" -eq 0
+
+      - name: 📜 創造物の掟 — 単一HTML / 外部依存ゼロ / toISOString 禁止
+        run: |
+          slugs="${{ steps.scope.outputs.slugs }}"
+          [ -z "$slugs" ] && { echo "対象なし"; exit 0; }
+          fail=0
+          for s in $slugs; do
+            for f in "$s"/*.html; do
+              [ -f "$f" ] || continue
+              echo "── $f ──"
+              # コメントを剥いでから裁く。掟が裁くのは振る舞いであって散文ではない
+              # (paradise 第42条と同じ規律をここでも守る)。
+              body=$(sed -e 's://[^"]*$::' "$f" | perl -0777 -pe 's{/\*.*?\*/}{ }gs; s{<!--.*?-->}{ }gs')
+              for pat in '<script src=' '<link ' '@import' 'toISOString('; do
+                n=$(printf '%s' "$body" | grep -cF "$pat" || true)
+                if [ "$n" -ne 0 ]; then
+                  echo "::error::$f: 掟違反 '$pat' が ${n}回"
+                  fail=1
+                fi
+              done
+              n=$(printf '%s' "$body" | grep -cE 'https?://[^"'"'"' )]+\.(js|css|woff2?|ttf|png|jpg|svg)' || true)
+              if [ "$n" -ne 0 ]; then
+                echo "::error::$f: 外部リソース参照が ${n}件"
+                fail=1
+              fi
+            done
+          done
+          test "$fail" -eq 0
+
+      - name: 🌐 ネットワーク送信ゼロの証明
+        run: |
+          slugs="${{ steps.scope.outputs.slugs }}"
+          [ -z "$slugs" ] && { echo "対象なし"; exit 0; }
+          fail=0
+          for s in $slugs; do
+            for f in "$s"/*.html; do
+              [ -f "$f" ] || continue
+              body=$(sed -e 's://[^"]*$::' "$f" | perl -0777 -pe 's{/\*.*?\*/}{ }gs; s{<!--.*?-->}{ }gs')
+              for pat in 'fetch(' 'XMLHttpRequest' 'sendBeacon' 'new WebSocket' 'new EventSource' '<form action='; do
+                n=$(printf '%s' "$body" | grep -cF "$pat" || true)
+                if [ "$n" -ne 0 ]; then
+                  echo "::error::$f: 送信経路 '$pat' が ${n}回 — 創造物はどこにも送信しない"
+                  fail=1
+                fi
+              done
+            done
+          done
+          test "$fail" -eq 0
+          echo "network egress: none"
