@@ -1662,7 +1662,50 @@ function analyze(state) {
       if (typeof w[j] !== "number" || !Number.isFinite(w[j])) { weightsBroken = true; }
     }
     if (unfilled > 0 || weightsBroken) {
-      return degenerateResult("unfilled-cells", TEXT.unfilledCells(unfilled));
+      // X-11 の裁定(tasks.md §5-2): 未入力があっても **埋まった行から順位は立ち上がる**。
+      // ux.md §3-1④「『入力が結果に効いている』感覚(US-03)が最初の1セルから得られる」。
+      // 未入力を 0 とみなすことは design.md §8-9 が禁じているので、ゼロ代用は一切しない —
+      // 埋まった行だけを computeScores に渡し(事前条件を破らない)、未入力を含む行は
+      // score:null / displayScore:"—" / rank:0 で末尾に置く。
+      const partial = [];
+      if (!weightsBroken) {
+        const filledIdx = [];
+        const filledRows = [];
+        for (let i = 0; i < a0.length; i++) {
+          let whole = true;
+          for (let j = 0; j < criteria.length; j++) {
+            const v = a0[i][j];
+            if (typeof v !== "number" || !Number.isFinite(v)) { whole = false; break; }
+          }
+          if (whole) { filledIdx.push(i); filledRows.push(a0[i]); }
+        }
+        if (filledRows.length > 0) {
+          const s = computeScores(filledRows, w);
+          const scored = [];
+          for (let k = 0; k < filledIdx.length; k++) {
+            const o = options[filledIdx[k]] || {};
+            scored.push({ optionId: o.id === undefined ? null : o.id,
+              name: o.name === undefined ? "" : o.name, score: s[k] });
+          }
+          scored.sort(function (p, q) { return q.score - p.score; });
+          for (let k = 0; k < scored.length; k++) {
+            partial.push({ optionId: scored[k].optionId, name: scored[k].name,
+              score: scored[k].score, displayScore: fmt.score(scored[k].score),
+              rank: k + 1, a: null, excluded: false, contribution: [] });
+          }
+        }
+        for (let i = 0; i < options.length; i++) {
+          if (filledIdx.indexOf(i) >= 0) { continue; }
+          const o = options[i] || {};
+          partial.push({ optionId: o.id === undefined ? null : o.id,
+            name: o.name === undefined ? "" : o.name, score: null,
+            displayScore: DASH, rank: 0, a: null, excluded: false, contribution: [] });
+        }
+      }
+      return makeAnalysis({
+        ok: false, degenerate: "unfilled-cells", message: TEXT.unfilledCells(unfilled),
+        weights: weights, anchoring: anchoring, warnings: warnings, ranking: partial
+      });
     }
 
     // ── 退化判定 5/6(足切りは加重和の前段)──────────────
@@ -2058,7 +2101,10 @@ var TenbinRender = (function () {
       if (isWinner) { li.className = "rank-row is-winner"; }
       var place = document.createElement("span");
       place.className = "place";
-      place.textContent = (vm.ranking.length < 2) ? "" : (tied && r.rank === 1 ? "1位タイ" : r.rank + "位");
+      // X-11: rank 0 は「未入力があってまだ順位が付いていない行」。
+      // 「0位」という順位は存在しないので、位ではなく状態として書く。
+      place.textContent = (vm.ranking.length < 2) ? ""
+        : (r.rank === 0 ? "未入力あり" : (tied && r.rank === 1 ? "1位タイ" : r.rank + "位"));
       var nm = document.createElement("span");
       nm.className = "name";
       nm.textContent = r.name === "" ? "(名前なし)" : r.name;
@@ -3057,7 +3103,7 @@ var TenbinRender = (function () {
     lines.push(["選択肢", "順位", "総合スコア"].map(csvCell).join(","));
     for (var i = 0; i < vm.ranking.length; i++) {
       var r = vm.ranking[i];
-      lines.push([r.name, r.rank, r.displayScore].map(csvCell).join(","));
+      lines.push([r.name, (r.rank === 0 ? DASH : r.rank), r.displayScore].map(csvCell).join(","));
     }
     lines.push("");
     lines.push(["基準", "向き", "重み", "逆転する重み", "Δw", "逆転相手"].map(csvCell).join(","));
@@ -3098,7 +3144,7 @@ var TenbinRender = (function () {
     out.push("| 順位 | 選択肢 | 総合スコア |");
     out.push("|---|---|---|");
     for (var i = 0; i < vm.ranking.length; i++) {
-      out.push("| " + vm.ranking[i].rank + " | " + mdCell(vm.ranking[i].name) + " | " + vm.ranking[i].displayScore + " |");
+      out.push("| " + (vm.ranking[i].rank === 0 ? DASH : vm.ranking[i].rank) + " | " + mdCell(vm.ranking[i].name) + " | " + vm.ranking[i].displayScore + " |");
     }
     out.push("");
     out.push("## 基準 — 崩れやすい順");
