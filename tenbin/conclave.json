@@ -98,9 +98,9 @@
           ],
           "gate": false,
           "artifact": "ux.md",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/ux.md"
         },
         {
           "id": "identity",
@@ -111,9 +111,9 @@
           ],
           "gate": false,
           "artifact": "identity.md",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/identity.md"
         },
         {
           "id": "design",
@@ -124,9 +124,9 @@
           ],
           "gate": true,
           "artifact": "design.md",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/design.md"
         },
         {
           "id": "detail",
@@ -358,6 +358,21 @@
       "ts": "2026-09-01T00:32:58.375Z",
       "event": "ratify",
       "detail": "Requirements (要件) ratified by cardinal:discovery"
+    },
+    {
+      "ts": "2026-09-01T00:58:05.333Z",
+      "event": "done",
+      "detail": "ux → ../paradise-creations/tenbin/ux.md"
+    },
+    {
+      "ts": "2026-09-01T00:58:05.380Z",
+      "event": "done",
+      "detail": "identity → ../paradise-creations/tenbin/identity.md"
+    },
+    {
+      "ts": "2026-09-01T00:58:05.426Z",
+      "event": "done",
+      "detail": "design → ../paradise-creations/tenbin/design.md"
     }
   ]
 }
