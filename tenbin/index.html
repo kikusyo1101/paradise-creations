@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>天秤 — 決断支援</title>
+<style>
+/* build-ui 位相がここに identity.md §7 の :root と版面を書く */
+</style>
+</head>
+<body>
+<!-- UI は build-ui 位相がここに建てる -->
+
+<script id="tenbin-core">
+/*===TENBIN-CORE-BEGIN===*/
+
+// ───────────────────────────────────────────────────────────────
+//  天秤 L1 計算コア(純粋)
+//  外部を一切読まない。副作用を持たない。例外を投げない。
+//  重み・スコアは内部では常に [0,1]。100 倍するのは fmt.* の中だけ。
+// ───────────────────────────────────────────────────────────────
+
+const VERSION = "1.0.0";
+
+// 単一の epsilon(design.md §5-4 D-9)。全ての「ゼロとの比較」に用いる。
+const EPS = 1e-9;
+
+// ───────────────────────────────────────────────────────────────
+//  fmt — フォーマッタ群(design.md §4-14 / tasks.md §1-15)
+//  丸めるのはここだけ。丸めた値を計算に戻さない(D-8)。
+// ───────────────────────────────────────────────────────────────
+
+const DASH = "—";
+
+// NaN / ±Infinity を画面に出さないための最後の砦
+function isShowable(v) {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+// 必ず符号を付ける。値の符号は元の値から取る(+0.0 を出さない)
+function signedFixed(v, digits) {
+  const scaled = v * 100;
+  const minus = v < 0 || Object.is(v, -0);
+  return (minus ? "-" : "+") + Math.abs(scaled).toFixed(digits);
+}
+
+const fmt = Object.freeze({
+  // S_i → "67.0"
+  score(s) { return isShowable(s) ? (s * 100).toFixed(1) : DASH; },
+  // w_j → "35.0"
+  weight(w) { return isShowable(w) ? (w * 100).toFixed(1) : DASH; },
+  // w_j → "30.882353"
+  weight6(w) { return isShowable(w) ? (w * 100).toFixed(6) : DASH; },
+  // Δw → "+6.8" / "-8.6"(必ず符号)
+  points(d) { return isShowable(d) ? signedFixed(d, 1) : DASH; },
+  // g_j → "+300.0" / "-171.4"(必ず符号)
+  percent(g) { return isShowable(g) ? signedFixed(g, 1) : DASH; },
+  // sens は「重み単位の逆数」。100 倍しない(design.md §4-6-1)
+  sens(s) {
+    if (!isShowable(s)) { return DASH; }
+    if (!(Math.abs(s) > 0)) { return "0"; }
+    return s.toFixed(1);
+  },
+  dash() { return DASH; }
+});
+
+// 足切り値は 0-10 尺度の生値なので、100 倍しない専用の整形
+function fmtCutoff(v) {
+  return isShowable(v) ? v.toFixed(1) : DASH;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  TEXT — prd §5-1〜§5-8 の正典文言。{} のみを置換する。
+// ───────────────────────────────────────────────────────────────
+
+const TEXT = Object.freeze({
+
+  // §5-3 退化状態
+  degenerate: Object.freeze({
+    "no-criteria": "何で比べるかを決めてください。基準を1つ以上足してください。",
+    "no-options": "まず、比べたいものを2つ以上足してください。",
+    "one-option": "比べる相手がいません。選択肢をもう1つ足してください。",
+    "all-excluded": "すべての選択肢が最低ラインで除外されました。最低ラインを見直してください。",
+    "tie": "同点です。基準またはスコアを見直してください。"
+  }),
+  unfilledCells(c) {
+    return "未入力のセルが " + c + " 個あります。埋めるまで結論は出せません。";
+  },
+
+  // §8-2 / §5-3 の警告(退化ではない)
+  warnZeroWeights: "全ての基準の重みが 0 です。等分として計算しています。",
+  warnManyCriteria: "基準が重複していないか確認してください。",
+  warnManyOptions: "比較しきれていない選択肢がないか確認してください。",
+
+  // §5-1 ラベル本体
+  labelLine(label, displayDelta, displayTheta) {
+    if (label === "robust") {
+      return "robust — どの単一基準の重みを動かしても結論は変わりません(Δ* = 逆転不能)";
+    }
+    if (label === "fragile") {
+      return "fragile — 結論はごく僅かな重みの差で崩れます(Δ* = " + displayDelta +
+        "ポイント ≤ しきい値 " + displayTheta + "ポイント)";
+    }
+    return "contingent — 結論は重みの置き方に依存します(Δ* = " + displayDelta +
+      "ポイント > しきい値 " + displayTheta + "ポイント)";
+  },
+
+  // §5-1 一次出力(fragile / contingent)
+  verdictLead(winnerName, kName, displayW, displayWStar, displayDelta, loserName, r) {
+    return winnerName + " の1位は、" + kName + "の重みを " + displayW + "% から " +
+      displayWStar + "%(" + displayDelta + "ポイント)に動かすと " + loserName +
+      " に入れ替わります。他の " + r + " 個の基準では単独で逆転しません。";
+  },
+  verdictAlso(kName, displayWStar, up) {
+    return kName + "を " + displayWStar + "% まで" + (up ? "上げて" : "下げて") +
+      "も同じことが起きます。";
+  },
+  verdictDominantShort(kName) {
+    return kName + "の重みは単独では結論を変えません。";
+  },
+
+  // §5-2 支配的優位(robust のときの総括文と各基準の理由文)
+  verdictRobustLead(winnerName) {
+    return winnerName + " の1位は、どの単一基準の重みを 0% から 100% のどこに動かしても入れ替わりません。";
+  },
+  dominantReason(kName, winnerName) {
+    return kName + " — 逆転不能。" + winnerName +
+      " がこの基準でも勝っている(または差が僅少)ため、重みを上げても " + winnerName +
+      " のリードが広がるだけです。";
+  },
+  robustCaveat: "基準そのものが抜けている可能性は、この分析では検出できません。",
+
+  // FR-10 臨界度行の文言
+  criticalityRow(displayW, displayWStar, displayDelta, opponentName) {
+    return "現在 " + displayW + "% → 逆転 " + displayWStar + "%(" + displayDelta +
+      "ポイント) " + opponentName + " に逆転";
+  },
+
+  // §5-4 逆算検知
+  anchoring(n, f) {
+    return "重みを " + n + " 回編集する間に1位が " + f + " 回入れ替わっています。\n" +
+      "結論に合わせて重みを調整していないか確認してください。";
+  },
+  initialWeightLine(kName, displayInitial, displayNow) {
+    return "最初の重み: " + kName + ": " + displayInitial + "%  →  現在: " + displayNow + "%";
+  },
+
+  // §5-5 プライバシー
+  privacy: "このページのデータは、あなたのブラウザにだけ保存されています。\nどこにも送信していません。",
+  privacyNoStorage: "このブラウザではデータを保存できません。\nこのページを閉じると入力は失われます。(どこにも送信していません。)",
+
+  // §5-6 rank invariance
+  rankInvariance: "選択肢を足しても、既存選択肢どうしの相対順位は変わりません。\n新しい選択肢がより高いスコアを取って1位になることはあります。",
+
+  // §5-7 貢献度の但し書き
+  contributionCaveat: "この分解は、加重和の各項が総和に占める割合を示すものです。\n学術的に検証された指標ではありません。",
+
+  // §5-8 足切りによる除外
+  exclusion(optionName, criterionName, cutoff) {
+    return optionName + " — " + criterionName + "が最低ライン" + fmtCutoff(cutoff) + "を下回るため除外";
+  }
+});
+
+// ───────────────────────────────────────────────────────────────
+//  §4-1 normalize / normalizeMatrix
+// ───────────────────────────────────────────────────────────────
+
+function normalize(raw, direction) {
+  if (raw === null || raw === undefined) { return null; }
+  if (typeof raw !== "number" || !Number.isFinite(raw)) { return null; }
+  // クランプを除算より前に置く(1e308 でも Infinity を作らない)
+  const v = raw < 0 ? 0 : (raw > 10 ? 10 : raw);
+  if (direction === "cost") { return (10 - v) / 10; }
+  return v / 10;
+}
+
+function normalizeMatrix(options, criteria) {
+  const opts = Array.isArray(options) ? options : [];
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const out = [];
+  for (let i = 0; i < opts.length; i++) {
+    const row = [];
+    const scores = (opts[i] && opts[i].scores && typeof opts[i].scores === "object") ? opts[i].scores : {};
+    for (let j = 0; j < crits.length; j++) {
+      const c = crits[j] || {};
+      const raw = Object.prototype.hasOwnProperty.call(scores, c.id) ? scores[c.id] : null;
+      row.push(normalize(raw === undefined ? null : raw, c.direction));
+    }
+    out.push(row);
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-2 normalizeWeights
+// ───────────────────────────────────────────────────────────────
+
+function normalizeWeights(rawWeights) {
+  const raw = Array.isArray(rawWeights) ? rawWeights : [];
+  const n = raw.length;
+  if (n === 0) { return []; }
+  const safe = [];
+  let sum = 0;
+  for (let j = 0; j < n; j++) {
+    const v = (typeof raw[j] === "number" && Number.isFinite(raw[j]) && raw[j] > 0) ? raw[j] : 0;
+    safe.push(v);
+    sum += v;
+  }
+  // Z-1 / E-9: 除算より前に分母を検査する。0/0 を作らない。
+  if (sum <= EPS) {
+    const eq = [];
+    for (let j = 0; j < n; j++) { eq.push(1 / n); }
+    return eq;
+  }
+  const out = [];
+  for (let j = 0; j < n; j++) { out.push(safe[j] / sum); }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-3 reweight — 比例再正規化
+//  tippingPoint と同一の写像でなければならない(AC-10)
+// ───────────────────────────────────────────────────────────────
+
+function reweight(w, k, x) {
+  const src = Array.isArray(w) ? w : [];
+  const n = src.length;
+  if (n === 0) { return []; }
+  if (n === 1) { return [1]; }
+  if (!Number.isFinite(k) || k < 0 || k >= n) { return src.slice(); }
+  const wk = src[k];
+  // Z-5 / E-6: 単独 100% のとき恒等写像。除算より前に検査する。
+  if (!Number.isFinite(wk) || wk >= 1 - EPS) { return src.slice(); }
+  const out = [];
+  for (let j = 0; j < n; j++) {
+    if (j === k) { out.push(x); }
+    else { out.push(src[j] * (1 - x) / (1 - wk)); }
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-4 computeScores — 加重和(j 昇順の単純な総和。Kahan を使わない)
+// ───────────────────────────────────────────────────────────────
+
+function computeScores(a, w) {
+  const rows = Array.isArray(a) ? a : [];
+  const ws = Array.isArray(w) ? w : [];
+  const out = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = Array.isArray(rows[i]) ? rows[i] : [];
+    let s = 0;
+    for (let j = 0; j < ws.length; j++) {
+      const v = row[j];
+      // 防御的に null を 0 とするが、この経路に入ること自体が呼び出し側のバグ
+      s += ws[j] * ((typeof v === "number" && Number.isFinite(v)) ? v : 0);
+    }
+    out.push(s);
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-5 rank — 順位付け(安定ソート、tied は EPS 判定 E-1)
+// ───────────────────────────────────────────────────────────────
+
+function rank(scores, options) {
+  const s = Array.isArray(scores) ? scores : [];
+  const n = s.length;
+  const order = [];
+  for (let i = 0; i < n; i++) { order.push(i); }
+  order.sort(function (p, q) {
+    const dp = s[q] - s[p];
+    if (!Number.isFinite(dp)) { return 0; }
+    if (dp < 0) { return -1; }
+    if (dp > 0) { return 1; }
+    return 0;
+  });
+  const winnerIndex = n === 0 ? -1 : order[0];
+  let tied = false;
+  if (n >= 2) { tied = (s[order[0]] - s[order[1]]) <= EPS; }
+  return { order: order, winnerIndex: winnerIndex, tied: tied };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-6 tippingPoint — 逆転閾値 ★中核
+//  Δw_k = D₀(1 − w_k)/(D₀ − d_k)、w_k* = w_k + Δw_k
+//  判定順序 1〜7 を厳密に守る。これが安全性の根拠(D-7)。
+// ───────────────────────────────────────────────────────────────
+
+function tippingPoint(d0, dk, wk) {
+  const dominant = { feasible: false, delta: Infinity, wStar: NaN, reason: "dominant" };
+  if (!Number.isFinite(d0) || !Number.isFinite(dk) || !Number.isFinite(wk)) { return dominant; }
+  // 1. 同点(または勝ち幅が雑音以下)
+  if (d0 <= EPS) { return dominant; }
+  // 2. 単独 100%
+  if (wk >= 1 - EPS) { return dominant; }
+  // 3. 実行可能性
+  const up = dk < -EPS;                 // E-3: 上げて逆転
+  const down = (wk * dk) > (d0 + EPS);  // E-4: 下げて逆転
+  // 4. 支配的優位(FR-09)。ここで返るので d_k = D₀ の除算に到達しない。
+  if (!up && !down) { return dominant; }
+  // 5. 分母
+  const den = d0 - dk;
+  // 6. E-5 数値的安全弁
+  if (Math.abs(den) <= EPS) { return dominant; }
+  // 7. 閉形式
+  const delta = d0 * (1 - wk) / den;
+  return { feasible: true, delta: delta, wStar: wk + delta, reason: up ? "up" : "down" };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-7 criticality — 臨界度ランキング
+//  全挑戦者を走査し argmin |Δw| を採る。Infinity の昇順ソートで
+//  逆転不能が自動的に末尾へ行く(末尾へ置く分岐を書かない)。
+// ───────────────────────────────────────────────────────────────
+
+function criticality(a, w, scores, criteria, options, winnerIndex) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const opts = Array.isArray(options) ? options : [];
+  const rows = [];
+  if (!Number.isFinite(winnerIndex) || winnerIndex < 0) { return rows; }
+  const winnerName = (opts[winnerIndex] && opts[winnerIndex].name) ? opts[winnerIndex].name : "";
+
+  for (let k = 0; k < crits.length; k++) {
+    const c = crits[k] || {};
+    let bestDelta = Infinity;
+    let bestWStar = NaN;
+    let bestOpponent = -1;
+    for (let i = 0; i < opts.length; i++) {
+      if (i === winnerIndex) { continue; }
+      const d0 = scores[winnerIndex] - scores[i];
+      if (!Number.isFinite(d0) || d0 <= EPS) { continue; }   // E-2
+      const dk = a[winnerIndex][k] - a[i][k];
+      const r = tippingPoint(d0, dk, w[k]);
+      // E-10: ヒステリシス。同値なら先に見つかった挑戦者を保持する。
+      if (r.feasible && Math.abs(r.delta) < Math.abs(bestDelta) - EPS) {
+        bestDelta = r.delta;
+        bestWStar = r.wStar;
+        bestOpponent = i;
+      }
+    }
+    const infeasible = bestOpponent < 0;
+    const opponent = infeasible ? null : opts[bestOpponent];
+    const opponentName = (opponent && opponent.name) ? opponent.name : null;
+    const weightK = w[k];
+    const displayWeight = fmt.weight(weightK);
+    const displayDelta = infeasible ? fmt.dash() : fmt.points(bestDelta);
+    const displayWStar = infeasible ? fmt.dash() : fmt.weight(bestWStar);
+    const sens = infeasible ? 0 : 1 / Math.abs(bestDelta);
+    rows.push({
+      criterionId: c.id === undefined ? null : c.id,
+      name: c.name === undefined ? "" : c.name,
+      weight: weightK,
+      displayWeight: displayWeight,
+      infeasible: infeasible,
+      delta: infeasible ? Infinity : bestDelta,
+      displayDelta: displayDelta,
+      wStar: infeasible ? NaN : bestWStar,
+      displayWStar: displayWStar,
+      sens: sens,
+      displaySens: fmt.sens(sens),
+      opponentId: (opponent && opponent.id !== undefined) ? opponent.id : null,
+      opponentName: opponentName,
+      text: infeasible
+        ? TEXT.dominantReason(c.name === undefined ? "" : c.name, winnerName)
+        : TEXT.criticalityRow(displayWeight, displayWStar, displayDelta, opponentName === null ? "" : opponentName)
+    });
+  }
+
+  // |delta| 昇順、同値なら入力順(安定ソート)。Infinity 同士で NaN を作らない。
+  rows.sort(function (x, y) {
+    const kx = x.infeasible ? Infinity : Math.abs(x.delta);
+    const ky = y.infeasible ? Infinity : Math.abs(y.delta);
+    if (kx === ky) { return 0; }
+    return kx < ky ? -1 : 1;
+  });
+  return rows;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-8 winContribution — 勝敗貢献度 g_j = w_j(a_Wj − a_Lj)/D₀
+// ───────────────────────────────────────────────────────────────
+
+function winContribution(a, w, winnerIndex, challengerIndex, d0, criteria) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  // Z-3: 除算より前に分母を検査する。ここでゼロ除算を起こさない。
+  if (!Number.isFinite(d0) || d0 <= EPS) { return []; }
+  if (!Number.isFinite(winnerIndex) || !Number.isFinite(challengerIndex)) { return []; }
+  const out = [];
+  for (let j = 0; j < crits.length; j++) {
+    const c = crits[j] || {};
+    const value = w[j] * (a[winnerIndex][j] - a[challengerIndex][j]) / d0;
+    out.push({
+      criterionId: c.id === undefined ? null : c.id,
+      name: c.name === undefined ? "" : c.name,
+      value: value,
+      display: fmt.percent(value),
+      negative: value < 0
+    });
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-9 scoreContribution — スコア貢献度 c_ij = w_j a_ij / S_i
+// ───────────────────────────────────────────────────────────────
+
+function scoreContribution(a, w, scores, optionIndex, criteria) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const s = Array.isArray(scores) ? scores[optionIndex] : undefined;
+  // E-8 / Z-2: 除算より前に判定する。0/0 = NaN を一度も生成しない。
+  if (typeof s !== "number" || !Number.isFinite(s) || s <= EPS) {
+    const dashed = [];
+    for (let j = 0; j < crits.length; j++) {
+      const c = crits[j] || {};
+      dashed.push({
+        criterionId: c.id === undefined ? null : c.id,
+        name: c.name === undefined ? "" : c.name,
+        value: null,
+        display: fmt.dash(),
+        negative: false
+      });
+    }
+    return dashed;
+  }
+  const out = [];
+  for (let j = 0; j < crits.length; j++) {
+    const c = crits[j] || {};
+    const value = w[j] * a[optionIndex][j] / s;
+    out.push({
+      criterionId: c.id === undefined ? null : c.id,
+      name: c.name === undefined ? "" : c.name,
+      value: value,
+      display: fmt.weight(value),
+      negative: value < 0
+    });
+  }
+  return out;
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-10 robustness — 頑健性ラベルと文言生成
+// ───────────────────────────────────────────────────────────────
+
+function robustness(rows, theta, winnerName, challengerName) {
+  const rs = Array.isArray(rows) ? rows : [];
+  const th = (typeof theta === "number" && Number.isFinite(theta)) ? theta : 0.10;
+  const wName = typeof winnerName === "string" ? winnerName : "";
+  const cName = typeof challengerName === "string" ? challengerName : "";
+
+  const head = rs.length > 0 ? rs[0] : null;
+  const deltaStar = (head === null || head.infeasible) ? Infinity : Math.abs(head.delta);
+
+  let label;
+  if (!Number.isFinite(deltaStar)) { label = "robust"; }
+  else if (deltaStar <= th + EPS) { label = "fragile"; }   // E-7: 境界は fragile 側
+  else { label = "contingent"; }
+
+  const displayDelta = (label === "robust") ? "逆転不能" : fmt.weight(deltaStar);
+  const labelLine = TEXT.labelLine(label, displayDelta, fmt.weight(th));
+
+  const feasibleRows = [];
+  const dominantRows = [];
+  for (let i = 0; i < rs.length; i++) {
+    if (rs[i].infeasible) { dominantRows.push(rs[i]); } else { feasibleRows.push(rs[i]); }
+  }
+
+  let verdict = "";
+  if (label === "robust") {
+    verdict = TEXT.verdictRobustLead(wName);
+    for (let i = 0; i < dominantRows.length; i++) {
+      verdict += TEXT.dominantReason(dominantRows[i].name, wName);
+    }
+  } else {
+    const first = feasibleRows[0];
+    const loser = (first.opponentName === null || first.opponentName === undefined) ? cName : first.opponentName;
+    verdict = TEXT.verdictLead(
+      wName, first.name, first.displayWeight, first.displayWStar,
+      first.displayDelta, loser, dominantRows.length
+    );
+    for (let i = 1; i < feasibleRows.length; i++) {
+      verdict += TEXT.verdictAlso(feasibleRows[i].name, feasibleRows[i].displayWStar, feasibleRows[i].delta > 0);
+    }
+    for (let i = 0; i < dominantRows.length; i++) {
+      verdict += TEXT.verdictDominantShort(dominantRows[i].name);
+    }
+  }
+
+  return {
+    label: label,
+    deltaStar: deltaStar,
+    displayDelta: displayDelta,
+    kStarId: (label === "robust" || head === null) ? null : head.criterionId,
+    kStarName: (label === "robust" || head === null) ? null : head.name,
+    labelLine: labelLine,
+    verdict: verdict,
+    caveat: (label === "robust") ? TEXT.robustCaveat : null
+  };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-11 anchoringDetect — 結論ありき逆算の検知(時計を読まない)
+// ───────────────────────────────────────────────────────────────
+
+function anchoringDetect(history, threshold) {
+  const h = Array.isArray(history) ? history : [];
+  const th = (typeof threshold === "number" && Number.isFinite(threshold) && threshold >= 1) ? threshold : 3;
+  let flips = 0;
+  for (let i = 0; i < h.length; i++) {
+    const e = h[i];
+    if (e && typeof e === "object" && e.leaderBefore !== e.leaderAfter) { flips++; }
+  }
+  const warn = flips >= th;
+  return {
+    edits: h.length,
+    flips: flips,
+    warn: warn,
+    message: warn ? TEXT.anchoring(h.length, flips) : null
+  };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-12 applyCutoffs — 足切り(加重和の前段)
+// ───────────────────────────────────────────────────────────────
+
+function applyCutoffs(a, criteria, options) {
+  const crits = Array.isArray(criteria) ? criteria : [];
+  const opts = Array.isArray(options) ? options : [];
+  const includedIndices = [];
+  const excluded = [];
+  for (let i = 0; i < opts.length; i++) {
+    const row = Array.isArray(a[i]) ? a[i] : [];
+    let hit = -1;
+    for (let j = 0; j < crits.length; j++) {
+      const c = crits[j] || {};
+      const cut = c.cutoff;
+      if (typeof cut !== "number" || !Number.isFinite(cut)) { continue; }
+      const v = row[j];
+      if (typeof v !== "number" || !Number.isFinite(v)) { continue; }
+      if (v * 10 < cut - EPS) { hit = j; break; }   // E-11
+    }
+    if (hit < 0) {
+      includedIndices.push(i);
+    } else {
+      const c = crits[hit] || {};
+      excluded.push({
+        index: i,
+        text: TEXT.exclusion(
+          (opts[i] && opts[i].name) ? opts[i].name : "",
+          c.name === undefined ? "" : c.name,
+          c.cutoff
+        )
+      });
+    }
+  }
+  return { includedIndices: includedIndices, excluded: excluded };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §3-1 / §3-5 / §3-6 状態の生成・移行・検証
+// ───────────────────────────────────────────────────────────────
+
+function createInitialState() {
+  return {
+    schemaVersion: 1,
+    criteria: [],
+    options: [],
+    settings: { theta: 0.10, flipThreshold: 3, challengerId: null },
+    initialWeights: null,
+    history: []
+  };
+}
+
+function migrateState(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) { return raw; }
+  let cur = raw;
+  // schemaVersion を見て段階的に持ち上げる。v1 では恒等変換だが分岐の器を置く。
+  let v = Number.isFinite(cur.schemaVersion) ? cur.schemaVersion : 1;
+  if (v < 1) { v = 1; }
+  while (v < 1) {
+    // 将来の移行段をここに積む
+    v++;
+  }
+  if (cur.schemaVersion !== v) {
+    const next = {};
+    for (const key in cur) {
+      if (Object.prototype.hasOwnProperty.call(cur, key)) { next[key] = cur[key]; }
+    }
+    next.schemaVersion = v;
+    cur = next;
+  }
+  return cur;
+}
+
+const MAX_ITEMS = 10;
+const MAX_NAME = 200;
+const MAX_HISTORY = 500;
+
+function clampName(v) {
+  const s = (typeof v === "string") ? v : "";
+  return s.length > MAX_NAME ? s.slice(0, MAX_NAME) : s;
+}
+
+// 生スコアを [0,10] にクランプし 0.5 の倍数に丸める
+function repairRawScore(v, report) {
+  if (v === null || v === undefined) { return null; }
+  if (typeof v !== "number" || !Number.isFinite(v)) { report("スコアが数値でないため未入力にしました"); return null; }
+  let x = v;
+  if (x < 0) { x = 0; report("スコアを 0 にクランプしました"); }
+  else if (x > 10) { x = 10; report("スコアを 10 にクランプしました"); }
+  const snapped = Math.round(x * 2) / 2;
+  if (snapped !== x) { report("スコアを 0.5 刻みに丸めました"); }
+  return snapped;
+}
+
+function validateState(parsed) {
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) { return { failed: true }; }
+  if (!Array.isArray(parsed.criteria) || !Array.isArray(parsed.options)) { return { failed: true }; }
+
+  const notes = [];
+  let repaired = false;
+  function report(msg) { repaired = true; if (notes.indexOf(msg) < 0) { notes.push(msg); } }
+
+  let idSeq = 0;
+  function freshId(prefix) { idSeq++; return prefix + "_r" + idSeq; }
+
+  // ── 基準 ────────────────────────────────────────────────
+  let rawCriteria = parsed.criteria;
+  if (rawCriteria.length > MAX_ITEMS) { rawCriteria = rawCriteria.slice(0, MAX_ITEMS); report("基準を先頭10件で切りました"); }
+  const criteria = [];
+  const critIdSeen = {};
+  for (let j = 0; j < rawCriteria.length; j++) {
+    const src = (rawCriteria[j] && typeof rawCriteria[j] === "object") ? rawCriteria[j] : {};
+    let id = (typeof src.id === "string" && src.id.length > 0) ? src.id : null;
+    if (id === null) { id = freshId("c"); report("基準の id を補いました"); }
+    if (Object.prototype.hasOwnProperty.call(critIdSeen, id)) {
+      // 後勝ち: 先に現れた方に新しい id を振る
+      const prev = criteria[critIdSeen[id]];
+      prev.id = freshId("c");
+      report("基準の id 重複を解消しました");
+    }
+    const name = clampName(src.name);
+    if (typeof src.name === "string" && src.name.length > MAX_NAME) { report("基準名を200文字で切りました"); }
+    let direction = src.direction;
+    if (direction !== "benefit" && direction !== "cost") { direction = "benefit"; report("基準の向きを benefit に修復しました"); }
+    let rawWeight = src.rawWeight;
+    if (typeof rawWeight !== "number" || !Number.isFinite(rawWeight) || rawWeight < 0) {
+      rawWeight = 0;
+      report((name === "" ? "基準" : name) + "の重みを 0 に修復しました");
+    }
+    let cutoff = src.cutoff;
+    if (cutoff === undefined) { cutoff = null; }
+    if (cutoff !== null) {
+      if (typeof cutoff !== "number" || !Number.isFinite(cutoff)) { cutoff = null; report("最低ラインを解除しました"); }
+      else if (cutoff < 0) { cutoff = 0; report("最低ラインを 0 にクランプしました"); }
+      else if (cutoff > 10) { cutoff = 10; report("最低ラインを 10 にクランプしました"); }
+    }
+    critIdSeen[id] = criteria.length;
+    criteria.push({ id: id, name: name, direction: direction, rawWeight: rawWeight, cutoff: cutoff });
+  }
+  // 重みの合計が 0 なら等重み(全て 1)にする
+  if (criteria.length > 0) {
+    let sumW = 0;
+    for (let j = 0; j < criteria.length; j++) { sumW += criteria[j].rawWeight; }
+    if (sumW <= EPS) {
+      for (let j = 0; j < criteria.length; j++) { criteria[j].rawWeight = 1; }
+      report("重みの合計が 0 のため等重みにしました");
+    }
+  }
+
+  // ── 選択肢 ──────────────────────────────────────────────
+  let rawOptions = parsed.options;
+  if (rawOptions.length > MAX_ITEMS) { rawOptions = rawOptions.slice(0, MAX_ITEMS); report("選択肢を先頭10件で切りました"); }
+  const options = [];
+  const optIdSeen = {};
+  for (let i = 0; i < rawOptions.length; i++) {
+    const src = (rawOptions[i] && typeof rawOptions[i] === "object") ? rawOptions[i] : {};
+    let id = (typeof src.id === "string" && src.id.length > 0) ? src.id : null;
+    if (id === null) { id = freshId("o"); report("選択肢の id を補いました"); }
+    if (Object.prototype.hasOwnProperty.call(optIdSeen, id)) {
+      const prev = options[optIdSeen[id]];
+      prev.id = freshId("o");
+      report("選択肢の id 重複を解消しました");
+    }
+    const name = clampName(src.name);
+    if (typeof src.name === "string" && src.name.length > MAX_NAME) { report("選択肢名を200文字で切りました"); }
+    const srcScores = (src.scores && typeof src.scores === "object" && !Array.isArray(src.scores)) ? src.scores : {};
+    const scores = {};
+    for (let j = 0; j < criteria.length; j++) {
+      const cid = criteria[j].id;
+      if (Object.prototype.hasOwnProperty.call(srcScores, cid)) {
+        scores[cid] = repairRawScore(srcScores[cid], report);
+      } else {
+        scores[cid] = null;
+        if (Object.keys(srcScores).length > 0) { report("不足していた基準のスコアを未入力で補いました"); }
+      }
+    }
+    for (const key in srcScores) {
+      if (Object.prototype.hasOwnProperty.call(srcScores, key) &&
+        !Object.prototype.hasOwnProperty.call(scores, key)) {
+        report("未知の基準 id のスコアを捨てました");
+      }
+    }
+    optIdSeen[id] = options.length;
+    options.push({ id: id, name: name, scores: scores });
+  }
+
+  // ── 設定 ────────────────────────────────────────────────
+  const srcSettings = (parsed.settings && typeof parsed.settings === "object" && !Array.isArray(parsed.settings))
+    ? parsed.settings : {};
+  let theta = srcSettings.theta;
+  if (typeof theta !== "number" || !Number.isFinite(theta) || theta < 0 || theta > 1) {
+    theta = 0.10;
+    if (srcSettings.theta !== undefined) { report("しきい値を既定の 0.10 に戻しました"); }
+  }
+  let flipThreshold = srcSettings.flipThreshold;
+  if (typeof flipThreshold !== "number" || !Number.isFinite(flipThreshold) || flipThreshold < 1) {
+    flipThreshold = 3;
+    if (srcSettings.flipThreshold !== undefined) { report("入替検知のしきい値を既定の 3 に戻しました"); }
+  }
+  let challengerId = (typeof srcSettings.challengerId === "string") ? srcSettings.challengerId : null;
+  if (challengerId !== null && !Object.prototype.hasOwnProperty.call(optIdSeen, challengerId)) {
+    challengerId = null;
+    report("存在しない挑戦者の指定を解除しました");
+  }
+
+  // ── w⁰(初期重み)───────────────────────────────────────
+  let initialWeights = null;
+  const srcInit = parsed.initialWeights;
+  if (srcInit && typeof srcInit === "object" && !Array.isArray(srcInit)) {
+    const keys = Object.keys(srcInit);
+    let matches = keys.length === criteria.length;
+    if (matches) {
+      for (let j = 0; j < criteria.length; j++) {
+        const v = srcInit[criteria[j].id];
+        if (typeof v !== "number" || !Number.isFinite(v)) { matches = false; break; }
+      }
+    }
+    if (matches) {
+      initialWeights = {};
+      for (let j = 0; j < criteria.length; j++) { initialWeights[criteria[j].id] = srcInit[criteria[j].id]; }
+    } else {
+      initialWeights = null;
+      report("最初の重みの記録が現在の基準と合わないため破棄しました");
+    }
+  } else if (srcInit !== null && srcInit !== undefined) {
+    report("最初の重みの記録を破棄しました");
+  }
+
+  // ── 履歴(壊れた要素だけを捨てる)──────────────────────
+  const history = [];
+  if (Array.isArray(parsed.history)) {
+    for (let i = 0; i < parsed.history.length; i++) {
+      const e = parsed.history[i];
+      if (!e || typeof e !== "object" || Array.isArray(e)) { report("壊れた履歴を1件捨てました"); continue; }
+      if (typeof e.criterionId !== "string" ||
+        typeof e.before !== "number" || !Number.isFinite(e.before) ||
+        typeof e.after !== "number" || !Number.isFinite(e.after)) {
+        report("壊れた履歴を1件捨てました");
+        continue;
+      }
+      history.push({
+        at: (typeof e.at === "number" && Number.isFinite(e.at)) ? e.at : 0,
+        criterionId: e.criterionId,
+        criterionName: clampName(e.criterionName),
+        before: e.before,
+        after: e.after,
+        leaderBefore: (typeof e.leaderBefore === "string") ? e.leaderBefore : null,
+        leaderAfter: (typeof e.leaderAfter === "string") ? e.leaderAfter : null
+      });
+    }
+    if (history.length > MAX_HISTORY) {
+      history.splice(0, history.length - MAX_HISTORY);
+      report("履歴を直近500件に切り詰めました");
+    }
+  } else if (parsed.history !== undefined && parsed.history !== null) {
+    report("履歴を破棄しました");
+  }
+
+  const value = {
+    schemaVersion: 1,
+    criteria: criteria,
+    options: options,
+    settings: { theta: theta, flipThreshold: flipThreshold, challengerId: challengerId },
+    initialWeights: initialWeights,
+    history: history
+  };
+
+  if (repaired) { return { repaired: true, value: value, notes: notes }; }
+  return { ok: true, value: value };
+}
+
+// ───────────────────────────────────────────────────────────────
+//  §4-13 analyze — 単一の入口。いかなる入力でも例外を投げない。
+// ───────────────────────────────────────────────────────────────
+
+function makeAnalysis(o) {
+  return {
+    ok: o.ok === true,
+    degenerate: o.degenerate === undefined ? null : o.degenerate,
+    message: o.message === undefined ? null : o.message,
+    weights: o.weights || [],
+    ranking: o.ranking || [],
+    winner: o.winner === undefined ? null : o.winner,
+    challenger: o.challenger === undefined ? null : o.challenger,
+    d0: (typeof o.d0 === "number" && Number.isFinite(o.d0)) ? o.d0 : 0,
+    displayD0: o.displayD0 === undefined ? fmt.score(0) : o.displayD0,
+    criticality: o.criticality || [],
+    winContrib: o.winContrib || [],
+    robustness: o.robustness === undefined ? null : o.robustness,
+    anchoring: o.anchoring || { edits: 0, flips: 0, warn: false, message: null },
+    excluded: o.excluded || [],
+    warnings: o.warnings || []
+  };
+}
+
+function analyze(state) {
+  try {
+    const st = (state && typeof state === "object" && !Array.isArray(state)) ? state : {};
+    const criteria = Array.isArray(st.criteria) ? st.criteria : [];
+    const options = Array.isArray(st.options) ? st.options : [];
+    const settings = (st.settings && typeof st.settings === "object" && !Array.isArray(st.settings)) ? st.settings : {};
+    const theta = (typeof settings.theta === "number" && Number.isFinite(settings.theta)) ? settings.theta : 0.10;
+    const flipThreshold = (typeof settings.flipThreshold === "number" && Number.isFinite(settings.flipThreshold))
+      ? settings.flipThreshold : 3;
+    const anchoring = anchoringDetect(Array.isArray(st.history) ? st.history : [], flipThreshold);
+
+    const warnings = [];
+    if (criteria.length >= 7) { warnings.push(TEXT.warnManyCriteria); }
+    if (options.length >= 7) { warnings.push(TEXT.warnManyOptions); }
+
+    // ── 重み ────────────────────────────────────────────
+    const rawWeights = [];
+    let sumRaw = 0;
+    for (let j = 0; j < criteria.length; j++) {
+      const c = criteria[j] || {};
+      const v = (typeof c.rawWeight === "number" && Number.isFinite(c.rawWeight) && c.rawWeight > 0) ? c.rawWeight : 0;
+      rawWeights.push(v);
+      sumRaw += v;
+    }
+    if (criteria.length > 0 && sumRaw <= EPS) { warnings.push(TEXT.warnZeroWeights); }
+    const w = normalizeWeights(rawWeights);
+
+    const initial = (st.initialWeights && typeof st.initialWeights === "object" && !Array.isArray(st.initialWeights))
+      ? st.initialWeights : null;
+    const weights = [];
+    for (let j = 0; j < criteria.length; j++) {
+      const c = criteria[j] || {};
+      const iw = (initial !== null && typeof initial[c.id] === "number" && Number.isFinite(initial[c.id]))
+        ? initial[c.id] : null;
+      weights.push({
+        criterionId: c.id === undefined ? null : c.id,
+        name: c.name === undefined ? "" : c.name,
+        weight: w[j],
+        displayWeight: fmt.weight(w[j]),
+        initialWeight: iw,
+        displayInitial: iw === null ? null : fmt.weight(iw)
+      });
+    }
+
+    function degenerateResult(kind, message) {
+      return makeAnalysis({
+        ok: false, degenerate: kind, message: message,
+        weights: weights, anchoring: anchoring, warnings: warnings
+      });
+    }
+
+    // ── 退化判定 1〜3 ───────────────────────────────────
+    if (criteria.length === 0) { return degenerateResult("no-criteria", TEXT.degenerate["no-criteria"]); }
+    if (options.length === 0) { return degenerateResult("no-options", TEXT.degenerate["no-options"]); }
+    if (options.length === 1) { return degenerateResult("one-option", TEXT.degenerate["one-option"]); }
+
+    // ── 正規化行列 + NaN 遮断(D-10 第3段)───────────────
+    const a0 = normalizeMatrix(options, criteria);
+    let unfilled = 0;
+    for (let i = 0; i < a0.length; i++) {
+      for (let j = 0; j < criteria.length; j++) {
+        const v = a0[i][j];
+        if (typeof v !== "number" || !Number.isFinite(v)) { unfilled++; }
+      }
+    }
+    let weightsBroken = false;
+    for (let j = 0; j < w.length; j++) {
+      if (typeof w[j] !== "number" || !Number.isFinite(w[j])) { weightsBroken = true; }
+    }
+    if (unfilled > 0 || weightsBroken) {
+      return degenerateResult("unfilled-cells", TEXT.unfilledCells(unfilled));
+    }
+
+    // ── 退化判定 5/6(足切りは加重和の前段)──────────────
+    const cut = applyCutoffs(a0, criteria, options);
+    const excludedRows = [];
+    for (let e = 0; e < cut.excluded.length; e++) {
+      const idx = cut.excluded[e].index;
+      const o = options[idx] || {};
+      excludedRows.push({
+        id: o.id === undefined ? null : o.id,
+        name: o.name === undefined ? "" : o.name,
+        a: a0[idx].slice(),
+        score: 0,
+        displayScore: fmt.score(0),
+        rank: 0,
+        excluded: true,
+        exclusionText: cut.excluded[e].text,
+        contribution: []
+      });
+    }
+    function withExcluded(base) {
+      base.excluded = excludedRows;
+      return base;
+    }
+
+    if (cut.includedIndices.length === 0) {
+      return withExcluded(makeAnalysis({
+        ok: false, degenerate: "all-excluded", message: TEXT.degenerate["all-excluded"],
+        weights: weights, anchoring: anchoring, warnings: warnings, excluded: excludedRows
+      }));
+    }
+    if (cut.includedIndices.length === 1) {
+      return withExcluded(makeAnalysis({
+        ok: false, degenerate: "one-option", message: TEXT.degenerate["one-option"],
+        weights: weights, anchoring: anchoring, warnings: warnings, excluded: excludedRows
+      }));
+    }
+
+    // ── 加重和 → 順位 ───────────────────────────────────
+    const aInc = [];
+    const optInc = [];
+    for (let t = 0; t < cut.includedIndices.length; t++) {
+      const idx = cut.includedIndices[t];
+      aInc.push(a0[idx]);
+      optInc.push(options[idx] || {});
+    }
+    const scores = computeScores(aInc, w);
+    const rk = rank(scores, optInc);
+    const winnerIndex = rk.winnerIndex;
+
+    // 挑戦者(FR-15): 既定は2位。設定があり、含まれていて勝者でなければそちら。
+    let challengerIndex = rk.order.length >= 2 ? rk.order[1] : -1;
+    if (typeof settings.challengerId === "string") {
+      for (let t = 0; t < optInc.length; t++) {
+        if (optInc[t].id === settings.challengerId && t !== winnerIndex) { challengerIndex = t; break; }
+      }
+    }
+
+    const ranking = [];
+    for (let r = 0; r < rk.order.length; r++) {
+      const idx = rk.order[r];
+      const o = optInc[idx];
+      ranking.push({
+        id: o.id === undefined ? null : o.id,
+        name: o.name === undefined ? "" : o.name,
+        a: aInc[idx].slice(),
+        score: scores[idx],
+        displayScore: fmt.score(scores[idx]),
+        rank: r + 1,
+        excluded: false,
+        exclusionText: null,
+        contribution: scoreContribution(aInc, w, scores, idx, criteria)
+      });
+    }
+    const winnerView = ranking.length > 0 ? ranking[0] : null;
+    let challengerView = null;
+    for (let r = 0; r < ranking.length; r++) {
+      if (challengerIndex >= 0 && ranking[r].id === optInc[challengerIndex].id && ranking[r].rank !== 1) {
+        challengerView = ranking[r];
+        break;
+      }
+    }
+    if (challengerView === null && ranking.length >= 2) { challengerView = ranking[1]; }
+
+    const d0 = (challengerIndex >= 0) ? (scores[winnerIndex] - scores[challengerIndex]) : 0;
+    const displayD0 = fmt.score(d0);
+
+    // ── 退化判定 7(同点)────────────────────────────────
+    if (rk.tied) {
+      return makeAnalysis({
+        ok: false, degenerate: "tie", message: TEXT.degenerate["tie"],
+        weights: weights, ranking: ranking, winner: winnerView, challenger: challengerView,
+        d0: d0, displayD0: displayD0,
+        criticality: [], winContrib: [], robustness: null,
+        anchoring: anchoring, excluded: excludedRows, warnings: warnings
+      });
+    }
+
+    // ── 正常系 ──────────────────────────────────────────
+    const critRows = criticality(aInc, w, scores, criteria, optInc, winnerIndex);
+    const winContrib = winContribution(aInc, w, winnerIndex, challengerIndex, d0, criteria);
+    const rob = robustness(
+      critRows, theta,
+      winnerView === null ? "" : winnerView.name,
+      challengerView === null ? "" : challengerView.name
+    );
+
+    return makeAnalysis({
+      ok: true, degenerate: null, message: null,
+      weights: weights, ranking: ranking, winner: winnerView, challenger: challengerView,
+      d0: d0, displayD0: displayD0,
+      criticality: critRows, winContrib: winContrib, robustness: rob,
+      anchoring: anchoring, excluded: excludedRows, warnings: warnings
+    });
+  } catch (err) {
+    // 事後条件: 例外を外に出さない。最悪でも退化状態として返す。
+    return makeAnalysis({
+      ok: false, degenerate: "no-criteria", message: TEXT.degenerate["no-criteria"]
+    });
+  }
+}
+
+// ───────────────────────────────────────────────────────────────
+//  コア公開面(C-4: コア領域の最後の文)
+// ───────────────────────────────────────────────────────────────
+
+const TenbinCore = Object.freeze({
+  VERSION, EPS,
+  normalize, normalizeMatrix, normalizeWeights, reweight, computeScores, rank,
+  tippingPoint, criticality, scoreContribution, winContribution,
+  robustness, anchoringDetect, applyCutoffs,
+  analyze, validateState, migrateState, createInitialState,
+  fmt, TEXT
+});
+
+/*===TENBIN-CORE-END===*/
+globalThis.TenbinCore = TenbinCore;
+</script>
+
+<script id="tenbin-persist"></script>
+<script id="tenbin-render"></script>
+<script id="tenbin-store"></script>
+</body>
+</html>
