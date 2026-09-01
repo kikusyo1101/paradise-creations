@@ -162,7 +162,10 @@ button, .btn {
 }
 button:hover { background: var(--hairline); }
 button:active { background: var(--primary-active); }
-button[disabled] { color: var(--muted); cursor: default; background: var(--canvas); }
+/* D-3: 非活性でも「逆転不能」は読ませねばならない状態表示である。
+   --muted(canvas 上 3.09:1、AA 未達)ではなく --muted-soft(5.49:1)を使う。
+   無効であることは disabled 属性・カーソル・枠線が既に伝えている。 */
+button[disabled] { color: var(--muted-soft); cursor: default; background: var(--canvas); }
 button.primary { background: var(--primary-hover); color: var(--on-primary); border-color: var(--primary); }
 button.primary:hover { background: var(--primary-active); }
 
@@ -440,11 +443,14 @@ input[type="text"]:hover, input[type="number"]:hover, select:hover { border-colo
 .gbar { margin-bottom: var(--sp-3); }
 .gbar .lbl { display: flex; justify-content: space-between; font-size: var(--fs-note); gap: var(--sp-3); }
 .gbar .lbl .v { font-family: var(--font-numeric); font-variant-numeric: tabular-nums; color: var(--ink); }
-.gbar .axis0 { position: relative; height: 12px; background: var(--surface); margin-top: var(--sp-1); }
+/* D-1: <span>/<i> は inline のままだと height も絶対配置も効かず、実測 0×0px になる。
+   軸とバー本体には必ず block を与える(これが無いと貢献度バーが1本も描画されない)。 */
+.gbar .axis0 { display: block; position: relative; height: 12px; background: var(--surface); margin-top: var(--sp-1); }
 .gbar .axis0::before {
   content: ""; position: absolute; top: 0; bottom: 0; left: 50%; width: var(--rule); background: var(--muted-soft);
 }
 .gbar .seg {
+  display: block;
   position: absolute; top: 0; bottom: 0;
   left: calc(var(--gl) * 1%); width: calc(var(--gw) * 1%);
   background: var(--bar-fill);
@@ -463,7 +469,7 @@ input[type="text"]:hover, input[type="number"]:hover, select:hover { border-colo
 .stack .who { font-size: var(--fs-note); color: var(--body); margin-bottom: var(--sp-1); }
 .stack .bar { display: flex; height: 20px; background: var(--surface); border: var(--rule) solid var(--hairline); }
 .stack .bar > i {
-  display: block; width: calc(var(--p) * 1%); height: 100%;
+  display: block; flex: 0 0 auto; width: calc(var(--p) * 1%); height: 100%;
   border-right: var(--rule) solid var(--canvas);
   background: var(--bar-fill);
 }
@@ -767,8 +773,10 @@ const EPS = 1e-9;
 const DASH = "—";
 
 // NaN / ±Infinity を画面に出さないための最後の砦
+// MAJOR-2: fmt.* は内部で v * 100 してから toFixed する。引数が有限でも
+// v*100 が overflow すると toFixed は文字列 "Infinity" を返す。砦を乗算の後ろにも置く。
 function isShowable(v) {
-  return typeof v === "number" && Number.isFinite(v);
+  return typeof v === "number" && Number.isFinite(v) && Number.isFinite(v * 100);
 }
 
 // 必ず符号を付ける。値の符号は元の値から取る(+0.0 を出さない)
@@ -781,6 +789,8 @@ function signedFixed(v, digits) {
 const fmt = Object.freeze({
   // S_i → "67.0"
   score(s) { return isShowable(s) ? (s * 100).toFixed(1) : DASH; },
+  // 正規化スコア a_ij → "3.0"(0-10 尺度。AC-14 のセル単位検証値、最低ライン欄と同じ尺度)
+  score10(a) { return isShowable(a) ? (a * 10).toFixed(1) : DASH; },
   // w_j → "35.0"
   weight(w) { return isShowable(w) ? (w * 100).toFixed(1) : DASH; },
   // w_j → "30.882353"
@@ -941,7 +951,9 @@ function normalizeWeights(rawWeights) {
     sum += v;
   }
   // Z-1 / E-9: 除算より前に分母を検査する。0/0 を作らない。
-  if (sum <= EPS) {
+  // MAJOR-1: 下側(sum = 0)だけでなく上側(Σŵ の overflow = Infinity)も検査する。
+  // Infinity で割ると全ての重みが 0 になり、事後条件 |Σw − 1| ≤ EPS を破る。
+  if (!Number.isFinite(sum) || sum <= EPS) {
     const eq = [];
     for (let j = 0; j < n; j++) { eq.push(1 / n); }
     return eq;
@@ -965,10 +977,12 @@ function reweight(w, k, x) {
   const wk = src[k];
   // Z-5 / E-6: 単独 100% のとき恒等写像。除算より前に検査する。
   if (!Number.isFinite(wk) || wk >= 1 - EPS) { return src.slice(); }
+  // MINOR-3: 事前条件 x ∈ [0,1]。破られたら例外ではなく定義された縮退値に倒す(§4-0)。
+  const xc = Number.isFinite(x) ? (x < 0 ? 0 : (x > 1 ? 1 : x)) : wk;
   const out = [];
   for (let j = 0; j < n; j++) {
-    if (j === k) { out.push(x); }
-    else { out.push(src[j] * (1 - x) / (1 - wk)); }
+    if (j === k) { out.push(xc); }
+    else { out.push(src[j] * (1 - xc) / (1 - wk)); }
   }
   return out;
 }
@@ -1124,13 +1138,17 @@ function winContribution(a, w, winnerIndex, challengerIndex, d0, criteria) {
   const out = [];
   for (let j = 0; j < crits.length; j++) {
     const c = crits[j] || {};
-    const value = w[j] * (a[winnerIndex][j] - a[challengerIndex][j]) / d0;
+    const num = w[j] * (a[winnerIndex][j] - a[challengerIndex][j]);
+    const value = num / d0;
     out.push({
       criterionId: c.id === undefined ? null : c.id,
       name: c.name === undefined ? "" : c.name,
       value: value,
       display: fmt.percent(value),
-      negative: value < 0
+      negative: value < 0,
+      // 「この基準は単独で結論をひっくり返せるか」は L1 が確定させる(INV-2)。
+      // tippingPoint 手順3 の down(E-4)と同一式・同一 EPS。g_j > 1 を素手で比較しない。
+      crossesUnity: Number.isFinite(num) && (num > (d0 + EPS))
     });
   }
   return out;
@@ -1330,6 +1348,9 @@ function migrateState(raw) {
 const MAX_ITEMS = 10;
 const MAX_NAME = 200;
 const MAX_HISTORY = 500;
+// MAJOR-1: 重みの生値の上限。cutoff / theta / スコアが上下限を持つのに重みだけが
+// 無制限だったため、1e308 が ok として通り Σŵ が overflow していた。
+const MAX_RAW_WEIGHT = 1e6;
 
 function clampName(v) {
   const s = (typeof v === "string") ? v : "";
@@ -1382,6 +1403,9 @@ function validateState(parsed) {
     if (typeof rawWeight !== "number" || !Number.isFinite(rawWeight) || rawWeight < 0) {
       rawWeight = 0;
       report((name === "" ? "基準" : name) + "の重みを 0 に修復しました");
+    } else if (rawWeight > MAX_RAW_WEIGHT) {
+      rawWeight = MAX_RAW_WEIGHT;
+      report((name === "" ? "基準" : name) + "の重みを上限に丸めました");
     }
     let cutoff = src.cutoff;
     if (cutoff === undefined) { cutoff = null; }
@@ -1468,7 +1492,8 @@ function validateState(parsed) {
     if (matches) {
       for (let j = 0; j < criteria.length; j++) {
         const v = srcInit[criteria[j].id];
-        if (typeof v !== "number" || !Number.isFinite(v)) { matches = false; break; }
+        // MAJOR-2: 有限性だけでなく [0,1] の範囲も検査する。重みは常に [0,1]。
+        if (typeof v !== "number" || !Number.isFinite(v) || v < 0 || v > 1) { matches = false; break; }
       }
     }
     if (matches) {
@@ -1530,13 +1555,19 @@ function validateState(parsed) {
 // ───────────────────────────────────────────────────────────────
 
 function makeAnalysis(o) {
+  const ranking = o.ranking || [];
+  const winner = o.winner === undefined ? null : o.winner;
+  const degenerate = o.degenerate === undefined ? null : o.degenerate;
   return {
     ok: o.ok === true,
-    degenerate: o.degenerate === undefined ? null : o.degenerate,
+    degenerate: degenerate,
     message: o.message === undefined ? null : o.message,
     weights: o.weights || [],
-    ranking: o.ranking || [],
-    winner: o.winner === undefined ? null : o.winner,
+    ranking: ranking,
+    winner: winner,
+    // MAJOR-3: 「勝者として強調してよいか」は L1 が1箇所で確定させる。
+    // 同点(tie)のとき winner は非 null だが、どちらが勝ちかは決まっていない。
+    highlightWinner: (winner !== null && degenerate !== "tie" && ranking.length >= 2),
     challenger: o.challenger === undefined ? null : o.challenger,
     d0: (typeof o.d0 === "number" && Number.isFinite(o.d0)) ? o.d0 : 0,
     displayD0: o.displayD0 === undefined ? fmt.score(0) : o.displayD0,
@@ -1991,7 +2022,8 @@ var TenbinRender = (function () {
       var r = vm.ranking[i];
       var li = document.createElement("li");
       li.className = "rank-row";
-      var isWinner = (r.rank === 1 && !tied && vm.ranking.length >= 2);
+      // MAJOR-3: 順位表とグリッドで同じ根拠(L1 の highlightWinner)を使う。
+      var isWinner = (r.rank === 1 && vm.highlightWinner);
       if (isWinner) { li.className = "rank-row is-winner"; }
       var place = document.createElement("span");
       place.className = "place";
@@ -2057,7 +2089,8 @@ var TenbinRender = (function () {
       }
       rail.setAttribute("aria-label", (c.name === "" ? "基準" : c.name) + "の重み");
       rail.setAttribute("aria-valuetext", dispW + "パーセント");
-      rail.setAttribute("aria-describedby", "");
+      // D-4: 空文字の aria-describedby は不正な参照として扱われうる。属性ごと外す。
+      rail.removeAttribute("aria-describedby");
 
       var num = el.querySelector(".weight-num");
       if (document.activeElement !== num) {
@@ -2177,7 +2210,8 @@ var TenbinRender = (function () {
       seg.style.setProperty("--gl", String(left));
       seg.style.setProperty("--gw", String(width));
       if (g.negative) { node.classList.add("is-neg"); }
-      if (v > 1) { node.classList.add("crosses"); crossed.push(g.name); }
+      // BLOCKER-1: 実行可能性の判定は L1 が確定させたものを使う(INV-2 / E-4 と同一 EPS)。
+      if (g.crossesUnity === true) { node.classList.add("crosses"); crossed.push(g.name); }
       node.querySelector(".axis0").setAttribute("aria-hidden", "true");
       box.appendChild(node);
     }
@@ -2358,7 +2392,8 @@ var TenbinRender = (function () {
       setText(th.querySelector(".dir"), c.direction === "cost" ? "↓ 低いほど良い" : "↑ 高いほど良い");
     }
 
-    var winnerId = vm.winner ? vm.winner.id : null;
+    // MAJOR-3: 勝者ハイライトの可否は L1 の highlightWinner を単一の根拠にする。
+    var winnerId = vm.highlightWinner ? vm.winner.id : null;
     for (var i = 0; i < state.options.length; i++) {
       var o = state.options[i];
       var tr = body.children[i];
@@ -2385,7 +2420,8 @@ var TenbinRender = (function () {
           (cr.name === "" ? "この基準" : cr.name) + "のスコア" +
           (cr.direction === "cost" ? "、低いほど良い" : ""));
         var nv = TenbinCore.normalize(typeof raw === "number" ? raw : null, cr.direction);
-        setText(td.querySelector(".ghost"), (nv === null) ? "未入力" : "変換後 " + TenbinCore.fmt.score(nv));
+        // D-2 / MINOR-1: ゴーストは AC-14 の 0-10 尺度で出す。最低ライン欄(0-10)と尺度を揃える。
+        setText(td.querySelector(".ghost"), (nv === null) ? "未入力" : "変換後 " + TenbinCore.fmt.score10(nv));
       }
     }
   }
@@ -2450,6 +2486,9 @@ var TenbinRender = (function () {
   var rafToken = 0;
   var liveTimer = 0;
   var lastLive = "";
+  // MINOR-2: モード遷移は「直前の vm.ok」で判定する。文言に "—" が入っているかで
+  // 状態を推定すると、TEXT を1文字変えた瞬間に分岐が静かに逆転する。
+  var lastLiveOk = null;
   var lastLeader = null;
   var dragging = null;
 
@@ -2647,11 +2686,12 @@ var TenbinRender = (function () {
       text = vm.message === null ? "" : vm.message;
     }
     if (text === lastLive) { return; }
-    var modeChanged = (vm.ok !== (lastLive !== "" && lastLive.indexOf("—") >= 0));
+    var modeChanged = (lastLiveOk !== null && lastLiveOk !== vm.ok);
     if (liveTimer) { clearTimeout(liveTimer); liveTimer = 0; }
     var fire = function () {
       liveTimer = 0;
       lastLive = text;
+      lastLiveOk = vm.ok;
       TenbinRender.renderLive(text);
     };
     if (modeChanged && !vm.ok) { fire(); return; }
@@ -2950,6 +2990,7 @@ var TenbinRender = (function () {
     undoStack = {};
     idSeq = { c: 0, o: 0 };
     lastLive = "";
+    lastLiveOk = null;
     setStatus("全て消しました");
     schedule({ reorder: true });
   });
@@ -2968,7 +3009,17 @@ var TenbinRender = (function () {
   }
   function csvCell(s) {
     var v = String(s === null || s === undefined ? "" : s);
+    // F-1: CSV インジェクション緩和。Excel/Sheets が数式として解釈する先頭文字を
+    // アポストロフィ前置で無害化する(書き出したファイルが他者に渡ったときの被害を断つ)。
+    if (/^[=+\-@\t\r]/.test(v)) { v = "'" + v; }
     return '"' + v.replace(/"/g, '""') + '"';
+  }
+  // F-2: Markdown の表構造・文書構造インジェクション緩和。
+  // パイプを実体化し、改行を空白に潰して行の分断を防ぐ。
+  function mdCell(s) {
+    return String(s === null || s === undefined ? "" : s)
+      .replace(/\|/g, "\\|")
+      .replace(/[\r\n]+/g, " ");
   }
   function buildCsv(vm) {
     var lines = [];
@@ -3016,7 +3067,7 @@ var TenbinRender = (function () {
     out.push("| 順位 | 選択肢 | 総合スコア |");
     out.push("|---|---|---|");
     for (var i = 0; i < vm.ranking.length; i++) {
-      out.push("| " + vm.ranking[i].rank + " | " + vm.ranking[i].name + " | " + vm.ranking[i].displayScore + " |");
+      out.push("| " + vm.ranking[i].rank + " | " + mdCell(vm.ranking[i].name) + " | " + vm.ranking[i].displayScore + " |");
     }
     out.push("");
     out.push("## 基準 — 崩れやすい順");
@@ -3025,8 +3076,8 @@ var TenbinRender = (function () {
     out.push("|---|---|---|---|---|");
     for (var j = 0; j < vm.criticality.length; j++) {
       var k = vm.criticality[j];
-      out.push("| " + k.name + " | " + k.displayWeight + " | " + k.displayWStar + " | " +
-        k.displayDelta + " | " + (k.opponentName === null ? "—" : k.opponentName) + " |");
+      out.push("| " + mdCell(k.name) + " | " + k.displayWeight + " | " + k.displayWStar + " | " +
+        k.displayDelta + " | " + (k.opponentName === null ? "—" : mdCell(k.opponentName)) + " |");
     }
     out.push("");
     out.push("このページのデータは、あなたのブラウザにだけ保存されています。どこにも送信していません。");
