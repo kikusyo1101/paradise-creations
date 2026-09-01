@@ -11,7 +11,7 @@
 :root {
   /* ── 面 ─────────────────────────────────────────── */
   --canvas:          #181818;  /* identity.js: body-on-light / description の base canvas */
-  --surface:         #242424;  /* 導出: canvas × hairline 50% */
+  --surface:         #242424;  /* 導出: canvas #181818 × palette hairline #303030 の 50% 混色 */
   --band-winner:     #3b1b19;  /* 導出: canvas × primary 18% */
 
   /* ── 文字 ───────────────────────────────────────── */
@@ -21,7 +21,13 @@
   --muted:           #666666;  /*  3.09:1 on canvas — 非活性のみ。surface 上は使用禁止 */
 
   /* ── 線 ─────────────────────────────────────────── */
-  --hairline:        #303030;  /*  1.35:1 — 装飾罫のみ。テキスト禁止 */
+  --hairline:        #666666;  /*  3.09:1 on canvas — WCAG 1.4.11 を満たす境界罫。
+                                  identity.js palette の muted 原値そのもの(新色を発明しない)。
+                                  §2-3「surface と canvas の差は 1.14:1 で境界は線で描く」を守るため、
+                                  罫は装飾ではなく面の境界を伝える意味を負う。テキスト色には引き続き禁止。 */
+  --bar-track:       #303030;  /*  旧 hairline 値。identity.js palette の hairline 原値。
+                                  バーの「溝」は境界線ではなく面(1.4.11 の対象外)。
+                                  意味は塗り(--bar-fill 4.46:1 / --bar-fill-crit 4.47:1 が溝に対して)が担う。 */
 
   /* ── 単一ブランド電圧(Rosso Corsa)───────────────── */
   --primary:         #da291c;  /*  3.65:1 on canvas — 非テキストUI・大文字のみ */
@@ -40,7 +46,6 @@
   --warn-ink:        #ffffff;            /* 逆算検知の本文 17.76:1 */
   --warn-rule:       var(--primary);     /* 逆算検知の左 4px 罫 3.65:1 */
   --fulcrum:         var(--primary);     /* 逆転閾値の支点 2px 3.65:1 */
-  --bar-track:       var(--hairline);
   --bar-fill:        var(--body);        /* 通常の重みバー(無彩色)6.00:1 */
   --bar-fill-crit:   var(--fragile-ink); /* 最臨界基準 k* のみ 6.01:1 */
   --focus-ring:      #ffffff;            /* 17.76:1 */
@@ -290,10 +295,17 @@ input[type="text"]:hover, input[type="number"]:hover, select:hover { border-colo
   background: var(--muted-soft); left: calc(var(--theta-pos, 25) * 1%);
   transform: translateX(-1px);
 }
+/* D-4: WCAG 2.5.8 は触れる/指し示す的に 24×24 CSS px を求める。
+   見た目の点は 11px のまま(ux §2-1 ④ の版面を変えない)、当たり判定だけを
+   24px の透明な箱に広げ、可視の丸は ::after を inset で内側に描く。 */
 .axis .dot-delta {
-  position: absolute; top: -4px; width: 11px; height: 11px; border-radius: 50%;
-  background: var(--primary); left: calc(var(--delta-pos, 0) * 1%);
-  transform: translateX(-5px);
+  position: absolute; top: -10.5px; width: 24px; height: 24px;
+  background: none; left: calc(var(--delta-pos, 0) * 1%);
+  transform: translateX(-12px);
+}
+.axis .dot-delta::after {
+  content: ""; position: absolute; inset: 6.5px;
+  border-radius: 50%; background: var(--primary);
 }
 .axis.is-robust { background: var(--robust-ink); }
 .axis-labels { display: flex; justify-content: space-between; font-size: var(--fs-note); color: var(--muted-soft); }
@@ -1848,7 +1860,7 @@ var TenbinPersist = (function () {
     var value = res && res.value ? res.value : TenbinCore.createInitialState();
     var notes = (res && res.repaired === true && res.notes) ? res.notes.slice() : [];
     var savedAt = null;
-    try { savedAt = localStorage.getItem("tenbin.v1.savedAt"); } catch (e) { savedAt = null; }
+    try { savedAt = readStamp(localStorage.getItem("tenbin.v1.savedAt")); } catch (e) { savedAt = null; }
     return { state: value, fresh: false, notes: notes, savedAt: savedAt };
   }
 
@@ -1859,11 +1871,30 @@ var TenbinPersist = (function () {
     } catch (e) { /* 隔離できなくても起動は続ける */ }
   }
 
+  /* D-5: 掟「toISOString を使わない」— 保存時刻はユーザーに「最終保存」として
+     見える値である。toISOString() は UTC に変換するため、JST 09:00 未満の保存が
+     前日の日付として表示されてしまう。ローカルの年月日時分を自前で組む。
+     形式: "YYYY-MM-DD HH:mm"(ローカル時刻)。 */
+  function pad2(n) { return (n < 10 ? "0" : "") + n; }
+  function localStamp(d) {
+    return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate()) +
+           " " + pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  }
+  /* 後方互換: 旧版が書いた ISO 文字列("…T…Z")もローカル時刻に直して読める。
+     解釈できない値はそのまま返す(表示は落とさない)。 */
+  function readStamp(raw) {
+    if (typeof raw !== "string" || raw === "") { return null; }
+    if (raw.indexOf("T") === -1) { return raw; }   // 既に新形式
+    var t = Date.parse(raw);
+    if (!isFinite(t)) { return raw; }
+    return localStamp(new Date(t));
+  }
+
   function writeNow(state) {
     if (!probe()) { notify("保存できません"); return; }
     try {
       localStorage.setItem("tenbin.v1.state", JSON.stringify(state));
-      localStorage.setItem("tenbin.v1.savedAt", new Date().toISOString());
+      localStorage.setItem("tenbin.v1.savedAt", localStamp(new Date()));
       notify("保存しました");
     } catch (e) {
       notify("保存できません");

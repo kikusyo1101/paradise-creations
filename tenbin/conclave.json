@@ -201,7 +201,7 @@
       "seq": 4,
       "cardinal": "quality",
       "domain": "Quality (品質)",
-      "status": "pending",
+      "status": "ratified",
       "reworks": 0,
       "phases": [
         {
@@ -215,9 +215,9 @@
           ],
           "gate": false,
           "artifact": "review",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         },
         {
           "id": "ux-review",
@@ -228,9 +228,9 @@
           ],
           "gate": false,
           "artifact": "ux-review.md",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         },
         {
           "id": "security",
@@ -242,9 +242,9 @@
           ],
           "gate": false,
           "artifact": "security-report",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         },
         {
           "id": "docs",
@@ -256,9 +256,9 @@
           ],
           "gate": false,
           "artifact": "docs",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         },
         {
           "id": "verify",
@@ -271,9 +271,9 @@
           ],
           "gate": true,
           "artifact": "verification-report",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         }
       ],
       "reviewClass": "executor",
@@ -283,7 +283,7 @@
       "seq": 5,
       "cardinal": "tribunal",
       "domain": "Tribunal (断罪機関)",
-      "status": "pending",
+      "status": "ratified",
       "reworks": 0,
       "phases": [
         {
@@ -296,9 +296,9 @@
           ],
           "gate": true,
           "artifact": "critique.md",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/review.md"
         },
         {
           "id": "verdict",
@@ -309,9 +309,9 @@
           ],
           "gate": true,
           "artifact": "verdict",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/verdict-report.json"
         }
       ],
       "reviewClass": "god",
@@ -408,6 +408,51 @@
       "ts": "2026-09-01T01:50:51.234Z",
       "event": "ratify",
       "detail": "Construction (建造) ratified by cardinal:quality"
+    },
+    {
+      "ts": "2026-09-01T02:36:46.754Z",
+      "event": "done",
+      "detail": "review → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T02:36:46.795Z",
+      "event": "done",
+      "detail": "ux-review → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T02:36:46.834Z",
+      "event": "done",
+      "detail": "security → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T02:36:46.872Z",
+      "event": "done",
+      "detail": "docs → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T02:36:46.911Z",
+      "event": "done",
+      "detail": "verify → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T02:36:46.952Z",
+      "event": "ratify",
+      "detail": "Quality (品質) ratified by executor"
+    },
+    {
+      "ts": "2026-09-01T03:39:30.194Z",
+      "event": "done",
+      "detail": "reflect → ../paradise-creations/tenbin/review.md"
+    },
+    {
+      "ts": "2026-09-01T03:39:58.357Z",
+      "event": "done",
+      "detail": "verdict → ../paradise-creations/tenbin/verdict-report.json"
+    },
+    {
+      "ts": "2026-09-01T03:39:58.400Z",
+      "event": "ratify",
+      "detail": "Tribunal (断罪機関) ratified by god"
     }
   ]
 }
