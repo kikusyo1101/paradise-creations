@@ -150,7 +150,7 @@
       "seq": 3,
       "cardinal": "construction",
       "domain": "Construction (建造)",
-      "status": "pending",
+      "status": "ratified",
       "reworks": 0,
       "phases": [
         {
@@ -162,9 +162,9 @@
           ],
           "gate": false,
           "artifact": "implementation",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         },
         {
           "id": "build-ui",
@@ -176,9 +176,9 @@
           ],
           "gate": false,
           "artifact": "ui",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         },
         {
           "id": "tests",
@@ -189,9 +189,9 @@
           ],
           "gate": false,
           "artifact": "tests",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/index.html"
         }
       ],
       "reviewClass": "cardinal:quality",
@@ -388,6 +388,26 @@
       "ts": "2026-09-01T01:15:41.567Z",
       "event": "ratify",
       "detail": "Architecture (設計) ratified by cardinal:requirements"
+    },
+    {
+      "ts": "2026-09-01T01:50:51.107Z",
+      "event": "done",
+      "detail": "build → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T01:50:51.149Z",
+      "event": "done",
+      "detail": "build-ui → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T01:50:51.190Z",
+      "event": "done",
+      "detail": "tests → ../paradise-creations/tenbin/index.html"
+    },
+    {
+      "ts": "2026-09-01T01:50:51.234Z",
+      "event": "ratify",
+      "detail": "Construction (建造) ratified by cardinal:quality"
     }
   ]
 }
