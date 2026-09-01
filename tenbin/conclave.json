@@ -49,7 +49,7 @@
       "seq": 1,
       "cardinal": "requirements",
       "domain": "Requirements (要件)",
-      "status": "active",
+      "status": "ratified",
       "reworks": 0,
       "phases": [
         {
@@ -74,9 +74,9 @@
           ],
           "gate": true,
           "artifact": "prd.md",
-          "status": "pending",
+          "status": "done",
           "attempts": 0,
-          "artifactPath": null
+          "artifactPath": "../paradise-creations/tenbin/prd.md"
         }
       ],
       "reviewClass": "cardinal:discovery",
@@ -348,6 +348,16 @@
       "ts": "2026-09-01T00:09:59.190Z",
       "event": "done",
       "detail": "analyze → ../paradise-creations/tenbin/analysis.md"
+    },
+    {
+      "ts": "2026-09-01T00:32:58.334Z",
+      "event": "done",
+      "detail": "specify → ../paradise-creations/tenbin/prd.md"
+    },
+    {
+      "ts": "2026-09-01T00:32:58.375Z",
+      "event": "ratify",
+      "detail": "Requirements (要件) ratified by cardinal:discovery"
     }
   ]
 }
