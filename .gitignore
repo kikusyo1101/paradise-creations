@@ -1,0 +1,15 @@
+# 楽園(engine)の派生物は、この倉の履歴に入れない —— 憲法 第30条
+#
+# `.claude/` は楽園リポジトリ(paradise-forge)の `<repo>/.claude/` を
+# そのまま鏡写した**派生物**である。台帳 `graph/abode.json` の輸出 EX-2 が
+# その宛先を名指しており、書き手は `graph/deploy.js` ただ一つ:
+#
+#     node graph/deploy.js --write --creations
+#     node graph/abode.js  check --creations     # 1:1 と sha256 を照合する
+#
+# 第30条は engine(法と道具・永く保たれ PR で一行ずつ審査される)と
+# creation(試みの証跡・捨てられることが前提)を別の倉に分ける。
+# ここに engine の写しを commit すれば、その分離が**逆流する** ——
+# 神官 30 体の履歴が創造物の履歴に混ざり、「これは本物か、鏡写しか」を
+# 誰も判定できなくなる。ゆえに追跡しない。いつでも建て直せる産物である。
+.claude/
